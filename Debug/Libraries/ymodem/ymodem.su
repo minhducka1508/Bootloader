@@ -1,0 +1,11 @@
+../Libraries/ymodem/ymodem.c:164:6:YMODEM_Init	8	static
+../Libraries/ymodem/ymodem.c:187:17:GenerateResponse	24	static
+../Libraries/ymodem/ymodem.c:253:10:YMODEM_Abort	16	static
+../Libraries/ymodem/ymodem.c:270:10:YMODEM_ReceiveByte	32	static
+../Libraries/ymodem/ymodem.c:344:17:YMODEM_ProcessPacket	16	static
+../Libraries/ymodem/ymodem.c:377:17:YMODEM_ProcessDataPacket	32	static
+../Libraries/ymodem/ymodem.c:420:17:YMODEM_ProcessFirstPacket	48	static
+../Libraries/ymodem/ymodem.c:482:17:Str2Int	32	static
+../Libraries/ymodem/ymodem.c:508:17:crc_update	24	static
+../Libraries/ymodem/ymodem.c:523:17:crc16	24	static
+../Libraries/ymodem/ymodem.c:537:17:YMODEM_CheckCRC	24	static

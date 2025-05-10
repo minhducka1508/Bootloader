@@ -1,0 +1,5 @@
+../Peripheral/uart/usart.c:5:6:MX_USART1_UART_Init	8	static
+../Peripheral/uart/usart.c:21:6:HAL_UART_MspInit	48	static
+../Peripheral/uart/usart.c:37:6:HAL_UART_MspDeInit	16	static
+../Peripheral/uart/usart.c:46:6:UART_Transmit	16	static
+../Peripheral/uart/usart.c:51:6:UART_Receive	16	static
