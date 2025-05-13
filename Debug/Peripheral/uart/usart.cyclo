@@ -1,5 +1,0 @@
-../Peripheral/uart/usart.c:5:6:MX_USART1_UART_Init	2
-../Peripheral/uart/usart.c:21:6:HAL_UART_MspInit	2
-../Peripheral/uart/usart.c:37:6:HAL_UART_MspDeInit	2
-../Peripheral/uart/usart.c:46:6:UART_Transmit	1
-../Peripheral/uart/usart.c:51:6:UART_Receive	1
