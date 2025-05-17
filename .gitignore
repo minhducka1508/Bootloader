@@ -1,0 +1,25 @@
+# Thư mục build/debug
+Debug/
+
+# File đối tượng và file biên dịch
+*.o
+*.obj
+*.elf
+*.bin
+*.hex
+*.map
+*.lst
+*.mk
+*.su
+*.cyclo
+*.cproject
+
+# File log
+*.log
+
+# VSCode config
+.vscode/
+
+# Các file hệ thống (nếu có)
+.DS_Store
+Thumbs.db
