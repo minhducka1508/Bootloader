@@ -12,7 +12,16 @@ Debug/
 *.mk
 *.su
 *.cyclo
+*.xml
+
+# STM32CubeIDE settings
+.settings/
+*.project
 *.cproject
+*.launch
+
+# Eclipse-specific
+*.prefs
 
 # File log
 *.log
