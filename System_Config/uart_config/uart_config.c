@@ -1,14 +1,32 @@
 /*
- *	uart_config.h
+ *	uart_config.c
  *	Created on: May 15, 2025
  *		Author: Trần Minh Đức
  */
 
 #include "uart_config.h"
 
+/* Config UART1 ------------------------------------------------------------*/
 UART_HandleTypeDef huart1;
 
-void UART1_Config(void)
+HLD_UART_Runtime_t uart1_runtime = {0};
+
+HLD_UART_Config_t uart1_config = 
+{
+	.huart = &huart1,
+	.tx_mode = HLD_UART_MODE_POLLING,
+	.rx_mode = HLD_UART_MODE_POLLING,
+	.tx_cb = NULL,
+	.rx_cb = NULL
+};
+
+HLD_UART_t uart1_handle =
+{
+	.config = &uart1_config,
+	.runtime = &uart1_runtime
+};
+
+void UART1_Config_Init(void)
 {
 	__HAL_RCC_GPIOA_CLK_ENABLE();
 	__HAL_RCC_USART1_CLK_ENABLE();
