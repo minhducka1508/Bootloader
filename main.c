@@ -24,6 +24,10 @@
 /* USER CODE END Header */
 
 #include "main.h"
+#include "hld_uart.h"
+#include "retarget.h"
+#include "gpio_config.h"
+#include "bootloader.h"
 
 int main(void)
 {
@@ -36,9 +40,9 @@ int main(void)
 
 	RetargetInit(uart1_handle.config->huart);
 
-	//Bootloader_Init();
-	while(1)
-	{
+	Bootloader_Init();
+//	while(1)
+//	{
 //		uint8_t data[5] = {0};
 //
 //		HLD_UART_Receive(&uart1_handle, data, sizeof(data));
@@ -51,7 +55,7 @@ int main(void)
 //		}
 //		HAL_Delay(5000);
 //		HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
-	}
+//	}
 }
 
 void SystemClock_Config(void)

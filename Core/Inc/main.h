@@ -31,11 +31,17 @@
 extern "C" {
 #endif
 
-#include "hld_uart.h"
-#include "retarget.h"
-#include "gpio_config.h"
-#include "bootloader.h"
 #include "stm32f4xx_hal.h"
+#include "stm32f4xx_hal_flash.h"
+#include "stm32f4xx_hal_dma.h"
+#include "stm32f4xx_hal_uart.h"
+#include "stm32f4xx_hal_gpio.h"
+#include "stm32f4xx_hal_def.h"
+
+#include "stdio.h"
+#include "stdint.h"
+#include "stdbool.h"
+#include "string.h"
 
 void SystemClock_Config(void);
 
