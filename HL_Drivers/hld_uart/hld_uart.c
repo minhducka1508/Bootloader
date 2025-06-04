@@ -9,6 +9,8 @@
 
 HLD_UART_Status_t HLD_UART_Init(const HLD_UART_t *uart)
 {
+	UART1_Config_Init();
+
 	if (uart == NULL || uart->config == NULL || uart->config->huart == NULL)
 	{
 		return HLD_UART_ERROR;
