@@ -13,10 +13,9 @@ extern "C"
 #endif
 
 #include "main.h"
-#include "stdint.h"
+#include "uart_config.h"
 
-#define APP1_START_ADDR 0x08004000
-#define APP2_START_ADDR 0x08008000
+#define UART_BOOTLOADER uart1_handle
 
 typedef enum
 {
@@ -51,7 +50,9 @@ typedef struct
 
 /* Functions -----------------------------------------------------------------*/
 void Bootloader_Init(void);
-eBootloader_Status Bootloader_Task(void);
+void Bootloader_Task(void);
+eBootloader_Status Bootloader_JumpToApplication(void);
+void Bootloader_YmodemReceive(void);
 eApp_Selection Bootloader_SelectApp(void);
 
 uint32_t readWord(uint32_t address);
@@ -72,7 +73,6 @@ uint8_t Bootloader_ConfigProtection(uint32_t protection);
 uint8_t Bootloader_CheckSize(uint32_t appsize);
 uint8_t Bootloader_VerifyChecksum(void);
 uint8_t Bootloader_CheckForApplication(void);
-void Bootloader_JumpToApplication(void);
 
 uint32_t Bootloader_GetVersion(void);
 

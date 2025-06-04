@@ -7,9 +7,14 @@
 #include "bootloader.h"
 #include "gpio_config.h"
 #include "retarget.h"
-#include "stdio.h"
+#include "common.h"
+#include "hld_flash.h"
+#include "hld_uart.h"
+#include "ymodem.h"
 
 extern UART_HandleTypeDef huart1;
+
+uint8_t aFileName[FILE_NAME_LENGTH];
 
 void Bootloader_Init(void)
 {
@@ -18,14 +23,20 @@ void Bootloader_Init(void)
 	Bootloader_Task();
 }
 
-eBootloader_Status Bootloader_Task(void)
+void Bootloader_Task(void)
+{
+	Bootloader_YmodemReceive();
+	Bootloader_JumpToApplication();
+}
+
+eBootloader_Status Bootloader_JumpToApplication(void)
 {
 	eBootloader_Status result = BOOT_STATUS_ERROR;
 	uint8_t emptyCellCount = 0;
 
 	for (uint8_t i = 0; i < 10; i++)
 	{
-		if (readWord(APP1_START_ADDR + (i * 4)) == -1)
+		if (readWord(APP_START_ADDR + (i * 4)) == -1)
 		{
 			emptyCellCount++;
 		}
@@ -46,14 +57,14 @@ eBootloader_Status Bootloader_Task(void)
 		case APP_1:
 		{
 			printf("APP1 is Called\r\n");
-			jumpToApp(APP1_START_ADDR);
+			jumpToApp(APP_START_ADDR);
 			break;
 		}
 
 		case APP_2:
 		{
 			printf("APP2 is Called\r\n");
-			jumpToApp(APP2_START_ADDR);
+			jumpToApp(APP_START_ADDR);
 			break;
 		}
 
@@ -63,6 +74,46 @@ eBootloader_Status Bootloader_Task(void)
 	}
 
 	return result;
+}
+
+void Bootloader_YmodemReceive(void)
+{
+	uint32_t size = 0;
+	uint8_t number[11] = {0};
+	COM_StatusTypeDef result;
+
+	Serial_PutString((uint8_t *)"\r\n[BOOT] Waiting for firmware transfer via YMODEM...\r\n");
+	Serial_PutString((uint8_t *)"Hint: Use TeraTerm or another YMODEM tool on PC to send the .bin file\n\r");
+	Serial_PutString((uint8_t *)"Press 'a' to cancel.\r\n");
+
+	result = Ymodem_Receive(&size);
+
+	if (result == COM_OK)
+	{
+		Serial_PutString((uint8_t *)"\r\nFile received and written successfully!\r\n");
+		Serial_PutString((uint8_t *)"File name: ");
+		Serial_PutString(aFileName);
+		Int2Str(number, size);
+		Serial_PutString((uint8_t *)"\r\nSize: ");
+		Serial_PutString(number);
+		Serial_PutString((uint8_t *)" Bytes\r\n");
+	}
+	else if (result == COM_LIMIT)
+	{
+		Serial_PutString((uint8_t *)"\r\nFile size exceeds allowed flash region!\r\n");
+	}
+	else if (result == COM_DATA)
+	{
+		Serial_PutString((uint8_t *)"\r\nError writing to flash!\r\n");
+	}
+	else if (result == COM_ABORT)
+	{
+		Serial_PutString((uint8_t *)"\r\nTransfer aborted by user.\r\n");
+	}
+	else
+	{
+		Serial_PutString((uint8_t *)"\r\nUnknown error occurred during file transfer.\r\n");
+	}
 }
 
 eApp_Selection Bootloader_SelectApp(void)
