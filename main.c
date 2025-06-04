@@ -1,31 +1,56 @@
+/* USER CODE BEGIN Header */
+/**
+  ******************************************************************************
+  * @file           : main.c
+  * @brief          : Main program body
+  ******************************************************************************
+  * @author         : Trần Minh Đức
+  * @date           : 15/05/2025
+  *
+  * @note
+  *   - Dự án: Bootloader bảo mật
+  *   - MCU  : STM32F411RE
+  *
+  ******************************************************************************
+  * @copyright
+  *
+  * Bản quyền (c) 2025 bởi Trần Minh Đức. Tất cả các quyền được bảo lưu.
+  *
+  * Phần mềm này được cung cấp "nguyên trạng", không có bất kỳ bảo đảm nào.
+  * Bạn có thể sử dụng, chỉnh sửa và phân phối lại tùy ý.
+  *
+  ******************************************************************************
+  */
+/* USER CODE END Header */
+
 #include "main.h"
-
-#include "gpio.h"
-#include "hld_uart.h"
-#include "uart_config.h"
-
-void SystemClock_Config(void);
 
 int main(void)
 {
 	HAL_Init();
 	SystemClock_Config();
-	MX_GPIO_Init();
-	UART1_Config();
 
-	uint8_t data[] = {0, 0, 0, 0};
-	while (1)
+	GPIO_Config_Init();
+
+	HLD_UART_Init(&uart1_handle);
+
+	RetargetInit(uart1_handle.config->huart);
+
+	//Bootloader_Init();
+	while(1)
 	{
-		if (data[0] == 0x01)
-		{
-			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_SET);
-		}
-		else
-		{
-			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_RESET);
-		}
-		HAL_Delay(1000);
-		HAL_Delay(1000);
+//		uint8_t data[5] = {0};
+//
+//		HLD_UART_Receive(&uart1_handle, data, sizeof(data));
+//		for(uint8_t i = 0; i < sizeof(data); i++)
+//		{
+//			if(data[i] == 0x99)
+//			{
+//				HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
+//			}
+//		}
+//		HAL_Delay(5000);
+//		HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
 	}
 }
 
