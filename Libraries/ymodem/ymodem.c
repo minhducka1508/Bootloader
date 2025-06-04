@@ -1,488 +1,355 @@
 /**
- * @file   ymodem.c
- * @author Ed Holmes (edholmes2232(at)gmail.com)
- * @brief  Functions for YMODEM protocol
- *         Reference used: http://textfiles.com/programming/ymodem.txt
- *                         https://programmer.ink/think/ymodem-protocol-learning.html
- * 		   To program from unix: use picocom with --send-cmd "sb -vv"
- *         To program from Windows: Use TeraTerm
+ ******************************************************************************
+ * @file    IAP_Main/Src/ymodem.c
+ * @author  MCD Application Team
+ * @brief   This file provides all the software functions related to the ymodem
+ *          protocol.
+ ******************************************************************************
+ * @attention
+ *
+ * Copyright (c) 2016 STMicroelectronics.
+ * All rights reserved.
+ *
+ * This software is licensed under terms that can be found in the LICENSE file
+ * in the root directory of this software component.
+ * If no LICENSE file comes with this software, it is provided AS-IS.
+ *
+ ******************************************************************************
  */
-#include "ymodem_conf.h"
+
+/** @addtogroup STM32F0xx_IAP
+ * @{
+ */
+
+/* Includes ------------------------------------------------------------------*/
+#include "hld_flash.h"
+#include "hld_uart.h"
+#include "bootloader.h"
+#include "retarget.h"
+#include "common.h"
 #include "ymodem.h"
-#include "stdlib.h"
-#include "string.h"
-#include "stm32f4xx_hal.h"
-#include "stm32f4xx_hal_flash.h"
 
+/* Private typedef -----------------------------------------------------------*/
+/* Private define ------------------------------------------------------------*/
+#define CRC16_F /* activate the CRC16 integrity */
 
-#define YM_FILE_NAME_LENGTH			(256)
-#define YM_FILE_SIZE_LENGTH			(16)
+extern uint8_t aFileName[FILE_NAME_LENGTH];
+/* Private macro -------------------------------------------------------------*/
+/* Private variables ---------------------------------------------------------*/
+/* @note ATTENTION - please keep this variable 32bit aligned */
+uint8_t aPacketData[PACKET_1K_SIZE + PACKET_DATA_INDEX + PACKET_TRAILER_SIZE];
 
-/** Regular packet size **/
-#define YM_PACKET_SIZE				(128)
-/** Data packet size **/
-#define YM_PACKET_1K_SIZE			(1024)
+/* Private function prototypes -----------------------------------------------*/
+static HLD_UART_Status_t ReceivePacket(uint8_t *p_data, uint32_t *p_length, uint32_t timeout);
+uint16_t UpdateCRC16(uint16_t crc_in, uint8_t byte);
+uint16_t Cal_CRC16(const uint8_t *p_data, uint32_t size);
+uint8_t CalcChecksum(const uint8_t *p_data, uint32_t size);
 
-#define YM_PACKET_SEQNO_INDEX     	(1)
-#define YM_PACKET_SEQNO_COMP_INDEX 	(2)
-
-#define YM_PACKET_HEADER           	(3)
-#define YM_PACKET_TRAILER          	(2)
-#define YM_PACKET_OVERHEAD         	(YM_PACKET_HEADER + YM_PACKET_TRAILER)
+/* Private functions ---------------------------------------------------------*/
 
 /**
- * @brief  YMODEM Control Characters
- *
+ * @brief  Receive a packet from sender
+ * @param  data
+ * @param  length
+ *     0: end of transmission
+ *     2: abort by sender
+ *    >0: packet length
+ * @param  timeout
+ * @retval HAL_OK: normally return
+ *         HAL_BUSY: abort by user
  */
-enum YM_CC {
-	SOH			= 0x01,	 /* start of 128-byte data packet */
-	STX			= 0x02,  /* start of 1024-byte data packet */
-	EOT			= 0x04,  /* end of transmission */
-	ACK			= 0x06,  /* acknowledge */
-	NAK			= 0x15,  /* negative acknowledge */
-	CA			= 0x18,  /* two of these in succession aborts transfer */
-	CRC16		= 0x43,  /* 'C' == 0x43, request 16-bit CRC */
-	ABORT1		= 0x41,  /* 'A' == 0x41, abort by user */
-	ABORT2		= 0x61,  /* 'a' == 0x61, abort by user */
-};
+static HLD_UART_Status_t ReceivePacket(uint8_t *p_data, uint32_t *p_length, uint32_t timeout)
+{
+	uint32_t crc;
+	uint32_t packet_size = 0;
+	HLD_UART_Status_t status;
+	uint8_t char1;
 
+	*p_length = 0;
+	status = HLD_UART_Receive(&UART_BOOTLOADER, &char1, 1, timeout);
 
-/** Polynomial for CRC calculation **/
-#define YM_CRC_POLY		(0x1021)
-
-#define SWAP16(x)		(x >> 8) | ((x & 0xff) << 8)
-#define ISVALIDDEC(c) 	((c >= '0') && (c <= '9'))
-#define CONVERTDEC(c)	(c - '0')
-
-/**
- * @brief  Internal return values
- *
- */
-typedef enum {
-	YM_OK = 0,		/* OK, RETURN NOTHING */
-	YM_ABORTED,		/* 2x CA Received, graceful abort, return ACK */
-	YM_ABORT,		/* Initiate graceful abort, return 2x CA */
-	YM_WRITE_ERR,	/* Error writing to flash */
-	YM_SIZE_ERR,	/* File too big */
-	YM_START_RX,	/* First frame ok, start receive, return ACK, CRC */
-	YM_RX_ERROR,	/* Data receive error, return NAK */
-	YM_RX_OK,		/* Data receive ok, return ACK */
-	YM_RX_COMPLETE,	/* Data receive complete, return ACK */
-	YM_SUCCESS,		/* Transfer complete, close */
-} YM_RET_T;
-
-
-
-
-static YM_RET_T YMODEM_ProcessPacket(void);
-static YM_RET_T YMODEM_ProcessFirstPacket(void);
-static YM_RET_T YMODEM_ProcessDataPacket(void);
-static YM_RET_T YMODEM_CheckCRC(void);
-
-static uint32_t Str2Int(uint8_t *inputstr, uint32_t *intnum);
-static uint8_t packet_data[YM_PACKET_1K_SIZE + YM_PACKET_OVERHEAD];
-
-
-
-static uint8_t 	fileName[YM_FILE_NAME_LENGTH];		/** Incoming file filename **/
-static uint8_t 	fileSizeStr[YM_FILE_SIZE_LENGTH];	/** Incoming file size string **/
-static uint32_t fileSize;						/** File size as int **/
-static uint8_t 	prevC;							/** Previous byte character inputted **/
-static uint8_t 	startOfPacket; 					/** Whether data is start of a packet **/
-static uint8_t 	eotReceived; 					/** Expect one more packet after this to signal end **/
-static uint16_t packetBytes; 					/** # of Bytes received of current packet **/
-static uint16_t packetSize;						/** Size of current packet **/
-static int32_t 	packetsReceived;				/** Num packets received **/
-static uint32_t flashAddr; 						/** Flash memory address to write packet to **/
-static YMODEM_T nextStatus; 					/** Status to return after closing a connection **/
-
-
-/**
- * @brief  Initialise YMODEM Rx State
- *
- */
-void YMODEM_Init(void) {
-	memset(fileName, 	0, YM_FILE_NAME_LENGTH);
-	memset(fileSizeStr, 0, YM_FILE_SIZE_LENGTH);
-	fileSize 		= 0;
-	prevC 			= 0;
-	startOfPacket 	= 1;
-	packetBytes 	= 0;
-	packetSize 		= 0;
-	packetsReceived	= 0;
-	eotReceived 	= 0;
-	flashAddr 		= YMODEM_FLASH_START;
-	nextStatus 		= YMODEM_OK;
-}
-
-
-/**
- * @brief  				Generates a payload to return to the YMODEM sender.
- *
- * @param  retVal		The internal YM_RET_T to translate to YMODEM_T
- * @param  respBuff		Buffer to write to the response to
- * @param  len			Length of data written
- * @return YMODEM_T
- */
-static YMODEM_T GenerateResponse(YM_RET_T retVal, uint8_t *respBuff, uint8_t *len) {
-	switch (retVal) {
-		case YM_OK:
-			len = 0;
-			return YMODEM_OK;
+	if (status == HLD_UART_OK)
+	{
+		switch (char1)
+		{
+		case SOH:
+			packet_size = PACKET_SIZE;
 			break;
-		case YM_ABORT:
-			YMODEM_Abort(respBuff, len);
-			return YMODEM_TX_PENDING;
+		case STX:
+			packet_size = PACKET_1K_SIZE;
 			break;
-		case YM_ABORTED:
-			respBuff[0] = CRC16;
-			*len = 1;
-			nextStatus = YMODEM_ABORTED;
-			return YMODEM_TX_PENDING;
+		case EOT:
 			break;
-		case YM_WRITE_ERR:
-			YMODEM_Abort(respBuff, len);
-			nextStatus = YMODEM_WRITE_ERR;
-			return YMODEM_TX_PENDING;
-		case YM_SIZE_ERR:
-			YMODEM_Abort(respBuff, len);
-			nextStatus = YMODEM_SIZE_ERR;
-			return YMODEM_TX_PENDING;
-		case YM_START_RX:
-			respBuff[0] = ACK;
-			respBuff[1] = CRC16;
-			*len = 2;
-			return YMODEM_TX_PENDING;
+		case CA:
+			if ((HLD_UART_Receive(&UART_BOOTLOADER, &char1, 1, timeout) == HLD_UART_OK) && (char1 == CA))
+			{
+				packet_size = 2;
+			}
+			else
+			{
+				status = HLD_UART_ERROR;
+			}
 			break;
-		case YM_RX_ERROR:
-			respBuff[0] = NAK;
-			*len = 1;
-			return YMODEM_TX_PENDING;
-			break;
-		case YM_RX_OK:
-			respBuff[0] = ACK;
-			*len = 1;
-			return YMODEM_TX_PENDING;
-			break;
-		case YM_RX_COMPLETE:
-			respBuff[0] = ACK;
-			respBuff[1] = CRC16;
-			*len = 2;
-			return YMODEM_TX_PENDING;
-			break;
-		case YM_SUCCESS:
-			respBuff[0] = ACK;
-			*len = 1;
-			nextStatus = YMODEM_COMPLETE;
-			return YMODEM_TX_PENDING;
+		case ABORT1:
+		case ABORT2:
+			status = HLD_UART_BUSY;
 			break;
 		default:
+			status = HLD_UART_ERROR;
 			break;
-	}
-	return YMODEM_ABORTED;
-}
+		}
+		*p_data = char1;
 
-/**
- * @brief  				Aborts a YMODEM transfer. Writing the aborting commands payload to a provided buffer.
- * 						This buffer needs to be sent to the YMODEM sender.
- *
- * @param  respBuff		Buffer to write payload to.
- * @param  len			Length of the payload.
- * @return YMODEM_T
- */
-YMODEM_T YMODEM_Abort(uint8_t *respBuff, uint8_t *len) {
-	respBuff[0] = CA;
-	respBuff[1] = CA;
-	*len = 2;
-	nextStatus = YMODEM_ABORTED;
-	return YMODEM_ABORTED;
-}
+		if (packet_size >= PACKET_SIZE)
+		{
+			status = HLD_UART_Receive(&UART_BOOTLOADER, &p_data[PACKET_NUMBER_INDEX], packet_size + PACKET_OVERHEAD_SIZE, timeout);
 
-/**
- * @brief  				Receives packets from a YMODEM Sender as a byte.
- * 						Bytes should be passed continuously while YMODEM_OK returned.
- *
- * @param  c			A byte from the YMODEM Sender
- * @param  respBuff		Buffer to write the data to be sent back to the sender
- * @param  respLen		Length of the data to send to the sender.
- * @return YMODEM_T 	Return value indicating status after each byte.
- */
-YMODEM_T YMODEM_ReceiveByte(uint8_t c, uint8_t *respBuff, uint8_t *respLen) {
-	YM_RET_T ret = YM_OK;
-
-	/* Return status if just closed connection */
-	if (nextStatus != YMODEM_OK) return nextStatus;
-
-	do {
-		/* Receive full packet */
-		if (startOfPacket) {
-			/* Process start of packet */
-			switch (c) {
-				case SOH:
-					packetSize = YM_PACKET_SIZE;
-					/* start receiving payload */
-					startOfPacket = 0;
-					packetBytes++; //increment by 1 byte
-					ret = YM_OK;
-					break;
-				case STX:
-					packetSize = YM_PACKET_1K_SIZE;
-					/* start receiving payload */
-					startOfPacket = 0;
-					packetBytes++; //increment by 1 byte
-					ret = YM_OK;
-					break;
-				case EOT:
-				/* One more packet comes after with 0,FF so reset this */
-					eotReceived = 1;
-					ret = YM_RX_COMPLETE;
-					break;
-				case CA:
-					/* Two of these aborts transfer */
-					if (prevC == CA) {
-						ret = YM_ABORTED;
-						break;
+			/* Simple packet sanity check */
+			if (status == HLD_UART_OK)
+			{
+				if (p_data[PACKET_NUMBER_INDEX] != ((p_data[PACKET_CNUMBER_INDEX]) ^ NEGATIVE_BYTE))
+				{
+					packet_size = 0;
+					status = HLD_UART_ERROR;
+				}
+				else
+				{
+					/* Check packet CRC */
+					crc = p_data[packet_size + PACKET_DATA_INDEX] << 8;
+					crc += p_data[packet_size + PACKET_DATA_INDEX + 1];
+					if (Cal_CRC16((uint8_t *)&p_data[PACKET_DATA_INDEX], packet_size) != crc)
+					{
+						packet_size = 0;
+						status = HLD_UART_ERROR;
 					}
-					ret = YM_OK;
+				}
+			}
+			else
+			{
+				packet_size = 0;
+			}
+		}
+	}
+	*p_length = packet_size;
+	return status;
+}
+
+/**
+ * @brief  Update CRC16 for input byte
+ * @param  crc_in input value
+ * @param  input byte
+ * @retval None
+ */
+uint16_t UpdateCRC16(uint16_t crc_in, uint8_t byte)
+{
+	uint32_t crc = crc_in;
+	uint32_t in = byte | 0x100;
+
+	do
+	{
+		crc <<= 1;
+		in <<= 1;
+		if (in & 0x100)
+			++crc;
+		if (crc & 0x10000)
+			crc ^= 0x1021;
+	}
+
+	while (!(in & 0x10000));
+
+	return crc & 0xffffu;
+}
+
+/**
+ * @brief  Cal CRC16 for YModem Packet
+ * @param  data
+ * @param  length
+ * @retval None
+ */
+uint16_t Cal_CRC16(const uint8_t *p_data, uint32_t size)
+{
+	uint32_t crc = 0;
+	const uint8_t *dataEnd = p_data + size;
+
+	while (p_data < dataEnd)
+		crc = UpdateCRC16(crc, *p_data++);
+
+	crc = UpdateCRC16(crc, 0);
+	crc = UpdateCRC16(crc, 0);
+
+	return crc & 0xffffu;
+}
+
+/**
+ * @brief  Calculate Check sum for YModem Packet
+ * @param  p_data Pointer to input data
+ * @param  size length of input data
+ * @retval uint8_t checksum value
+ */
+uint8_t CalcChecksum(const uint8_t *p_data, uint32_t size)
+{
+	uint32_t sum = 0;
+	const uint8_t *p_data_end = p_data + size;
+
+	while (p_data < p_data_end)
+	{
+		sum += *p_data++;
+	}
+
+	return (sum & 0xffu);
+}
+
+/* Public functions ---------------------------------------------------------*/
+/**
+ * @brief  Receive a file using the ymodem protocol with CRC16.
+ * @param  p_size The size of the file.
+ * @retval COM_StatusTypeDef result of reception/programming
+ */
+COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
+{
+	uint32_t i, packet_length, session_done = 0, file_done, errors = 0, session_begin = 0;
+	uint32_t flashdestination, ramsource, filesize;
+	uint8_t *file_ptr;
+	uint8_t file_size[FILE_SIZE_LENGTH], packets_received;
+	COM_StatusTypeDef result = COM_OK;
+
+	/* Initialize flashdestination variable */
+	flashdestination = APP_START_ADDR;
+
+	Serial_PutByte(CRC16);
+
+	while ((session_done == 0) && (result == COM_OK))
+	{
+		packets_received = 0;
+		file_done = 0;
+		while ((file_done == 0) && (result == COM_OK))
+		{
+			switch (ReceivePacket(aPacketData, &packet_length, DOWNLOAD_TIMEOUT))
+			{
+			case HLD_UART_OK:
+				errors = 0;
+				switch (packet_length)
+				{
+				case 2:
+					/* Abort by sender */
+					Serial_PutByte(ACK);
+					printf("\r\n ======> Case 2\r\n");
+					result = COM_ABORT;
 					break;
-				case ABORT1:
-				case ABORT2:
-					ret = YM_ABORT;
+				case 0:
+					/* End of transmission */
+					Serial_PutByte(ACK);
+					file_done = 1;
 					break;
 				default:
-					ret = YM_RX_ERROR;
-					break;
-			}
-		} else {
-			/* receive rest of packet */
-			if (packetBytes < (packetSize + YM_PACKET_OVERHEAD)-1) {
-				packet_data[packetBytes++] = c;
-				ret = YM_OK;
-				break;
-			} else {
-				/* Last byte of packet */
-				packet_data[packetBytes++] = c;
-				if (packet_data[YM_PACKET_SEQNO_INDEX] != ((packet_data[YM_PACKET_SEQNO_COMP_INDEX] ^ 0xFF) & 0xFF)) {
-					/* Check byte 1 == (byte 2 XOR 0xFF) */
-					ret = YM_RX_ERROR;
-					break;
-				} else {
-					/* Full packet received */
-					ret = YMODEM_ProcessPacket();
-					startOfPacket = 1;
-					packetBytes = 0;
+					/* Normal packet */
+					if (aPacketData[PACKET_NUMBER_INDEX] != packets_received)
+					{
+						Serial_PutByte(NAK);
+					}
+					else
+					{
+						if (packets_received == 0)
+						{
+							/* File name packet */
+							if (aPacketData[PACKET_DATA_INDEX] != 0)
+							{
+								/* File name extraction */
+								i = 0;
+								file_ptr = aPacketData + PACKET_DATA_INDEX;
+								while ((*file_ptr != 0) && (i < FILE_NAME_LENGTH))
+								{
+									aFileName[i++] = *file_ptr++;
+								}
+
+								/* File size extraction */
+								aFileName[i++] = '\0';
+								i = 0;
+								file_ptr++;
+								while ((*file_ptr != ' ') && (i < FILE_SIZE_LENGTH))
+								{
+									file_size[i++] = *file_ptr++;
+								}
+								file_size[i++] = '\0';
+								Str2Int(file_size, &filesize);
+
+								/* Test the size of the image to be sent */
+								/* Image size is greater than Flash size */
+								if (*p_size > (APP_FLASH_SIZE + 1))
+								{
+									/* End session */
+									uint8_t ca_buf[2] = {CA, CA};
+									HLD_UART_Transmit(&UART_BOOTLOADER, ca_buf, 2, NAK_TIMEOUT);
+									result = COM_LIMIT;
+								}
+								/* erase user application area */
+								FLASH_If_Erase(APP_START_ADDR);
+								*p_size = filesize;
+
+								Serial_PutByte(ACK);
+								Serial_PutByte(CRC16);
+							}
+							/* File header packet is empty, end session */
+							else
+							{
+								Serial_PutByte(ACK);
+								file_done = 1;
+								session_done = 1;
+								break;
+							}
+						}
+						else /* Data packet */
+						{
+							ramsource = (uint32_t)&aPacketData[PACKET_DATA_INDEX];
+
+							/* Write received data in Flash */
+							if (FLASH_If_Write(flashdestination, (uint32_t *)ramsource, packet_length / 4) == FLASHIF_OK)
+							{
+								flashdestination += packet_length;
+								Serial_PutByte(ACK);
+							}
+							else /* An error occurred while writing to Flash memory */
+							{
+								/* End session */
+								Serial_PutByte(CA);
+								Serial_PutByte(CA);
+								result = COM_DATA;
+							}
+						}
+						packets_received++;
+						session_begin = 1;
+					}
 					break;
 				}
-			}
-		}
-
-	} while (0); // Empty do while to avoid multiple "return" statements
-	prevC = c;
-	return GenerateResponse(ret, respBuff, respLen);
-}
-
-static YM_RET_T YMODEM_ProcessPacket(void) {
-	YM_RET_T ret = YM_OK;
-	do {
-		if (eotReceived == 1) {
-			ret = YM_SUCCESS;
-			break;
-		/* Check byte 1 == num of bytes received */
-		} else if ((packet_data[YM_PACKET_SEQNO_INDEX] & 0xFF) != (packetsReceived & 0xFF)) {
-			/* Send a NAK */
-			ret = YM_RX_ERROR;
-			break;
-		} else if (YMODEM_CheckCRC() != YM_OK) {
-			ret = YM_RX_ERROR;
-			break;
-		} else {
-			if (packetsReceived == 0) {
-				ret = YMODEM_ProcessFirstPacket();
 				break;
-			} else {
-				ret = YMODEM_ProcessDataPacket();
+			case HLD_UART_BUSY: /* Abort actually */
+				Serial_PutByte(CA);
+				Serial_PutByte(CA);
+				printf("\r\n======> Case HAL_BUSY\r\n");
+				result = COM_ABORT;
+				break;
+			default:
+				if (session_begin > 0)
+				{
+					errors++;
+				}
+				if (errors > MAX_ERRORS)
+				{
+					/* Abort communication */
+					Serial_PutByte(CA);
+					Serial_PutByte(CA);
+				}
+				else
+				{
+					Serial_PutByte(CRC16); /* Ask for a packet */
+				}
 				break;
 			}
 		}
-	} while(0);
-	return ret;
+	}
+	return result;
 }
 
 /**
- * @brief  				Writes a data packet to the flash set in ymodem_conf.h
- * 						Optionally validates the writes.
- *
- * @return YM_RET_T 	YM_WRITE_ERR if write fails, otherwise YM_RX_OK
+ * @}
  */
-static YM_RET_T YMODEM_ProcessDataPacket(void) {
-	YM_RET_T ret;
-	do {
-		if (HAL_FLASH_Unlock() != HAL_OK) {
-			ret = YM_WRITE_ERR;
-			break;
-		}
-
-		__HAL_FLASH_CLEAR_FLAG(FLASH_FLAG_EOP | FLASH_FLAG_OPERR | FLASH_FLAG_WRPERR | FLASH_FLAG_PGAERR | FLASH_FLAG_PGPERR );// FLASH_FLAG_PGSERR);
-
-		const uint8_t *buffIn = (const uint8_t *)packet_data + YM_PACKET_HEADER;
-
-		for (uint32_t i = 0; (i < packetSize) && (flashAddr <= YMODEM_FLASH_START + YMODEM_FLASH_SIZE); i++) {
-			if (HAL_FLASH_Program(FLASH_TYPEPROGRAM_BYTE, flashAddr, buffIn[i]) != HAL_OK) {
-				ret = YM_WRITE_ERR;
-				break;
-			}
-
-			flashAddr++;
-		}
-
-		HAL_FLASH_Lock();
-
-		#ifdef YMODEM_VALIDATE_PROGRAMMING
-		if(memcmp((void *)(flashAddr-packetSize), (void *)&packet_data[YM_PACKET_HEADER], packetSize) != 0) {
-			ret = YM_WRITE_ERR;
-			break;
-		}
-		#endif
-
-		ret = YM_RX_OK;
-		packetsReceived++;
-
-	} while(0);
-	return ret;
-}
-
-
-/**
- * @brief  			Gets data from the first YMODEM packet.
- *
- * @return YM_RET_T
- */
-static YM_RET_T YMODEM_ProcessFirstPacket(void) {
-	YM_RET_T ret;
-	int32_t i;
-	uint8_t *filePtr;
-	do {
-		/* Filename packet */
-		if (packet_data[YM_PACKET_HEADER] != 0) {
-			/* Packet has valid data */
-			/* Get File Name */
-			for (i = 0, filePtr = packet_data + YM_PACKET_HEADER; (*filePtr != 0) && (i < YM_FILE_NAME_LENGTH); ) {
-				fileName[i++] = *filePtr++;
-			}
-			fileName[i++] = '\0';
-
-			for (i = 0, filePtr++; (*filePtr != ' ') && (i < YM_FILE_SIZE_LENGTH); ) {
-				fileSizeStr[i++] = *filePtr++;
-			}
-			fileSizeStr[i++] = '\0';
-			Str2Int(fileSizeStr, &fileSize);
-
-			/* Test size of image < Flash size */
-			if (fileSize > (YMODEM_FLASH_SIZE - 1)) {
-				/* End session */
-				ret = YM_SIZE_ERR;
-				break;
-			} else {
-				/* Erase Flash Sector */
-				FLASH_EraseInitTypeDef EraseInitStruct;
-				uint32_t sectorError;
-
-				EraseInitStruct.TypeErase		= FLASH_TYPEERASE_SECTORS;
-				EraseInitStruct.Sector			= YMODEM_FLASH_FIRST_SECTOR_NUM;
-				EraseInitStruct.NbSectors		= YMODEM_FLASH_NUM_OF_SECTORS;
-				EraseInitStruct.VoltageRange	= FLASH_VOLTAGE_RANGE_3;
-
-				HAL_FLASH_Unlock();
-				__HAL_FLASH_CLEAR_FLAG(FLASH_FLAG_EOP | FLASH_FLAG_OPERR | FLASH_FLAG_WRPERR | FLASH_FLAG_PGAERR | FLASH_FLAG_PGPERR );// FLASH_FLAG_PGSERR);
-				if(HAL_FLASHEx_Erase(&EraseInitStruct, &sectorError) != HAL_OK) {
-					HAL_FLASH_Lock();
-					ret = YM_WRITE_ERR;
-					break;
-				}
-				HAL_FLASH_Lock();
-			}
-
-
-			/* Send ACK AND CRC, READY FOR DATA */
-			ret = YM_START_RX;
-			packetsReceived++;
-			break;
-
-		} else {
-			/* Filename packet is empty, end session */
-			ret = YM_ABORT;
-			break;
-		}
-
-	} while (0);
-	return ret;
-}
-
-
-static uint32_t Str2Int(uint8_t *inputstr, uint32_t *intnum) {
-	uint32_t i = 0, res = 0;
-	uint32_t val = 0;
-
-	/* max 10-digit decimal input */
-	for (i = 0; i < 11; i++) {
-		if (inputstr[i] == '\0') {
-			*intnum = val;
-			/* return 1 */
-			res = 1;
-			break;
-		} else if (ISVALIDDEC(inputstr[i])) {
-			val = val * 10 + CONVERTDEC(inputstr[i]);
-		} else {
-			/* return 0, Invalid input */
-			res = 0;
-			break;
-		}
-	}
-	/* Over 10 digit decimal --invalid */
-	if (i >= 11) {
-		res = 0;
-	}
-	return res;
-}
-
-static uint16_t crc_update(uint16_t crc_in, int incr)
-{
-        uint16_t xor = crc_in >> 15;
-        uint16_t out = crc_in << 1;
-
-        if (incr)
-                out++;
-
-        if (xor)
-                out ^= YM_CRC_POLY;
-
-        return out;
-}
-
-
-static uint16_t crc16(const uint8_t *data, uint16_t size)
-{
-        uint16_t crc, i;
-
-        for (crc = 0; size > 0; size--, data++)
-                for (i = 0x80; i; i >>= 1)
-                        crc = crc_update(crc, *data & i);
-
-        for (i = 0; i < 16; i++)
-                crc = crc_update(crc, 0);
-
-        return crc;
-}
-
-static YM_RET_T YMODEM_CheckCRC(void) {
-	uint16_t sourceCRC = 0;
-	sourceCRC = packet_data[(packetSize+YM_PACKET_OVERHEAD) - 1];
-	sourceCRC = (sourceCRC << 8) | packet_data[(packetSize+YM_PACKET_OVERHEAD) - 2];
-
-	uint16_t newCRC = SWAP16(crc16(packet_data+YM_PACKET_HEADER, packetSize));
-	if (newCRC != sourceCRC) {
-		return YM_RX_ERROR;
-	} else {
-		return YM_OK;
-	}
-}
