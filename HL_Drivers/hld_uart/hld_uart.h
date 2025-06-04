@@ -13,15 +13,11 @@ extern "C"
 #endif
 
 #include "uart_config.h"
-#include "stm32f4xx_hal.h"
-#include "stm32f4xx_hal_dma.h"
-#include "stm32f4xx_hal_uart.h"
-#include <stdbool.h>
-#include <stdint.h>
+#include "main.h"
 
 HLD_UART_Status_t HLD_UART_Init(const HLD_UART_t *uart);
-HLD_UART_Status_t HLD_UART_Transmit(const HLD_UART_t *uart, const uint8_t *data, uint32_t len);
-HLD_UART_Status_t HLD_UART_Receive(const HLD_UART_t *uart, uint8_t *data, uint32_t len);
+HLD_UART_Status_t HLD_UART_Transmit(const HLD_UART_t *uart, const uint8_t *data, uint32_t len, uint32_t Timeout);
+HLD_UART_Status_t HLD_UART_Receive(const HLD_UART_t *uart, uint8_t *data, uint32_t len, uint32_t Timeout);
 HLD_UART_Status_t HLD_UART_AbortTransmit(const HLD_UART_t *uart);
 HLD_UART_Status_t HLD_UART_AbortReceive(const HLD_UART_t *uart);
 

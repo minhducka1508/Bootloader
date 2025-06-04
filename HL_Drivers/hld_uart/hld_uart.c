@@ -5,7 +5,6 @@
  */
 
 #include "hld_uart.h"
-#include "stm32f4xx_hal_def.h"
 
 HLD_UART_Status_t HLD_UART_Init(const HLD_UART_t *uart)
 {
@@ -22,7 +21,7 @@ HLD_UART_Status_t HLD_UART_Init(const HLD_UART_t *uart)
 	return HLD_UART_OK;
 }
 
-HLD_UART_Status_t HLD_UART_Transmit(const HLD_UART_t *uart, const uint8_t *data, uint32_t data_length)
+HLD_UART_Status_t HLD_UART_Transmit(const HLD_UART_t *uart, const uint8_t *data, uint32_t data_length, uint32_t Timeout)
 {
 	if (uart == NULL || uart->runtime->tx_busy)
 	{
@@ -30,13 +29,13 @@ HLD_UART_Status_t HLD_UART_Transmit(const HLD_UART_t *uart, const uint8_t *data,
 	}
 
 	uart->runtime->tx_busy = true;
-	HAL_StatusTypeDef result = HAL_UART_Transmit(uart->config->huart, (uint8_t *)data, data_length, HAL_MAX_DELAY);
+	HAL_StatusTypeDef result = HAL_UART_Transmit(uart->config->huart, (uint8_t *)data, data_length, Timeout);
 	uart->runtime->tx_busy = false;
 
 	return (result == HAL_OK) ? HLD_UART_OK : HLD_UART_ERROR;
 }
 
-HLD_UART_Status_t HLD_UART_Receive(const HLD_UART_t *uart, uint8_t *data, uint32_t data_length)
+HLD_UART_Status_t HLD_UART_Receive(const HLD_UART_t *uart, uint8_t *data, uint32_t data_length, uint32_t Timeout)
 {
 	if (uart == NULL || uart->runtime->rx_busy)
 	{
@@ -44,7 +43,7 @@ HLD_UART_Status_t HLD_UART_Receive(const HLD_UART_t *uart, uint8_t *data, uint32
 	}
 
 	uart->runtime->rx_busy = true;
-	HAL_StatusTypeDef result = HAL_UART_Receive(uart->config->huart, data, data_length, HAL_MAX_DELAY);
+	HAL_StatusTypeDef result = HAL_UART_Receive(uart->config->huart, data, data_length, Timeout);
 	uart->runtime->rx_busy = false;
 
 	return (result == HAL_OK) ? HLD_UART_OK : HLD_UART_ERROR;
