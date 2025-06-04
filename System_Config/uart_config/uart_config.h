@@ -13,15 +13,16 @@ extern "C"
 #endif
 
 #include "ringbuffer.h"
-#include "stm32f4xx_hal.h"
+#include "main.h"
 #include <stdbool.h>
 #include <stdint.h>
 
 typedef enum
 {
-	HLD_UART_OK = 0,
-	HLD_UART_BUSY,
-	HLD_UART_ERROR
+	HLD_UART_OK = 0x00U,
+	HLD_UART_ERROR = 0x01U,
+	HLD_UART_BUSY = 0x02U,
+	HLD_UART_TIMEOUT = 0x03U
 } HLD_UART_Status_t;
 
 typedef enum
