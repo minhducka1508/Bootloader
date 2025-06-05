@@ -212,11 +212,13 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 	uint8_t *file_ptr;
 	uint8_t file_size[FILE_SIZE_LENGTH], packets_received;
 	COM_StatusTypeDef result = COM_OK;
+	uint32_t tick_start = HAL_GetTick();
+	uint32_t timeout_ms = 2000; // timeout 5 giây
 
 	/* Initialize flashdestination variable */
 	flashdestination = APP_START_ADDR;
 
-	Serial_PutByte(CRC16);
+	//Serial_PutByte(CRC16);
 
 	while ((session_done == 0) && (result == COM_OK))
 	{
@@ -228,12 +230,12 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 			{
 			case HLD_UART_OK:
 				errors = 0;
+				tick_start = HAL_GetTick();
 				switch (packet_length)
 				{
 				case 2:
 					/* Abort by sender */
 					Serial_PutByte(ACK);
-					printf("\r\n ======> Case 2\r\n");
 					result = COM_ABORT;
 					break;
 				case 0:
@@ -325,7 +327,6 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 			case HLD_UART_BUSY: /* Abort actually */
 				Serial_PutByte(CA);
 				Serial_PutByte(CA);
-				printf("\r\n======> Case HAL_BUSY\r\n");
 				result = COM_ABORT;
 				break;
 			default:
@@ -333,6 +334,13 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 				{
 					errors++;
 				}
+
+				if ((HAL_GetTick() - tick_start) > timeout_ms)
+				{
+					result = COM_ABORT;
+					break;
+				}
+
 				if (errors > MAX_ERRORS)
 				{
 					/* Abort communication */
