@@ -18,7 +18,7 @@ uint8_t aFileName[FILE_NAME_LENGTH];
 
 void Bootloader_Init(void)
 {
-	printf("====> Bootloader Init <====\r\n");
+	printf("\r\n====> Bootloader Init <====\r\n");
 
 	Bootloader_Task();
 }
