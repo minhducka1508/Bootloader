@@ -1,7 +1,12 @@
+/*
+ *	hld_flash.c
+ *	Created on: Jun 4, 2025
+ *		Author: Trần Minh Đức
+ */
+
 #include "hld_flash.h"
 #include "stm32f4xx_hal.h"
 
-/* Private defines */
 #define FLASHIF_OK 0
 #define FLASHIF_ERASEKO 1
 #define FLASHIF_WRITING_ERROR 2

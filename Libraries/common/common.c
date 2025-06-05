@@ -1,35 +1,12 @@
-/**
-  ******************************************************************************
-  * @file    IAP_Main/Src/common.c 
-  * @author  MCD Application Team
-  * @brief   This file provides all the common functions.
-  ******************************************************************************
-  * @attention
-  *
-  * Copyright (c) 2016 STMicroelectronics.
-  * All rights reserved.
-  *
-  * This software is licensed under terms that can be found in the LICENSE file
-  * in the root directory of this software component.
-  * If no LICENSE file comes with this software, it is provided AS-IS.
-  *
-  ******************************************************************************
-  */ 
-
-/** @addtogroup STM32F0xx_IAP_Main
-  * @{
-  */
+/*
+ *	common.c
+ *	Created on: Jun 4, 2025
+ *		Author: Trần Minh Đức
+ */
 
 /* Includes ------------------------------------------------------------------*/
 #include "common.h"
 #include "hld_uart.h"
-
-/* Private typedef -----------------------------------------------------------*/
-/* Private define ------------------------------------------------------------*/
-/* Private macro -------------------------------------------------------------*/
-/* Private variables ---------------------------------------------------------*/
-/* Private function prototypes -----------------------------------------------*/
-/* Private functions ---------------------------------------------------------*/
 
 /**
   * @brief  Convert an Integer to a string
@@ -81,28 +58,25 @@ uint32_t Str2Int(uint8_t *p_inputstr, uint32_t *p_intnum)
       }
       else
       {
-        /* Return 0, Invalid input */
         res = 0;
         break;
       }
       i++;
     }
 
-    /* valid result */
     if (p_inputstr[i] == '\0')
     {
       *p_intnum = val;
       res = 1;
     }
   }
-  else /* max 10-digit decimal input */
+  else
   {
     while ( ( i < 11 ) && ( res != 1 ) )
     {
       if (p_inputstr[i] == '\0')
       {
         *p_intnum = val;
-        /* return 1 */
         res = 1;
       }
       else if (((p_inputstr[i] == 'k') || (p_inputstr[i] == 'K')) && (i > 0))
@@ -123,7 +97,6 @@ uint32_t Str2Int(uint8_t *p_inputstr, uint32_t *p_intnum)
       }
       else
       {
-        /* return 0, Invalid input */
         res = 0;
         break;
       }
@@ -159,6 +132,3 @@ HAL_StatusTypeDef Serial_PutByte( uint8_t param )
 {
   return HLD_UART_Transmit(&UART_BOOTLOADER, &param, 1, TX_TIMEOUT);
 }
-/**
-  * @}
-  */
