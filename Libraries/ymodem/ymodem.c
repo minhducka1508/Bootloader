@@ -28,6 +28,7 @@
 #include "retarget.h"
 #include "common.h"
 #include "ymodem.h"
+#include "aes.h"
 
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
@@ -38,6 +39,21 @@ extern uint8_t aFileName[FILE_NAME_LENGTH];
 /* Private variables ---------------------------------------------------------*/
 /* @note ATTENTION - please keep this variable 32bit aligned */
 uint8_t aPacketData[PACKET_1K_SIZE + PACKET_DATA_INDEX + PACKET_TRAILER_SIZE];
+
+#define AES_KEY_LEN 16
+#define AES_BLOCK_SIZE 16
+
+static const uint8_t aes_key[AES_KEY_LEN] = {
+    0x60, 0x3d, 0xeb, 0x10, 0x15, 0xca, 0x71, 0xbe,
+    0x2b, 0x73, 0xae, 0xf0, 0x85, 0x7d, 0x77, 0x81
+};
+
+static const uint8_t aes_iv[AES_BLOCK_SIZE] = {
+    0x00, 0x01, 0x02, 0x03,
+    0x04, 0x05, 0x06, 0x07,
+    0x08, 0x09, 0x0a, 0x0b,
+    0x0c, 0x0d, 0x0e, 0x0f
+};
 
 /* Private function prototypes -----------------------------------------------*/
 static HLD_UART_Status_t ReceivePacket(uint8_t *p_data, uint32_t *p_length, uint32_t timeout);
@@ -208,7 +224,7 @@ uint8_t CalcChecksum(const uint8_t *p_data, uint32_t size)
 COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 {
 	uint32_t i, packet_length, session_done = 0, file_done, errors = 0, session_begin = 0;
-	uint32_t flashdestination, ramsource, filesize;
+	uint32_t flashdestination, filesize;
 	uint8_t *file_ptr;
 	uint8_t file_size[FILE_SIZE_LENGTH], packets_received;
 	COM_StatusTypeDef result = COM_OK;
@@ -218,6 +234,8 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 	/* Initialize flashdestination variable */
 	flashdestination = APP_START_ADDR;
 
+	struct AES_ctx ctx;
+	AES_init_ctx_iv(&ctx, aes_key, aes_iv);
 	//Serial_PutByte(CRC16);
 
 	while ((session_done == 0) && (result == COM_OK))
@@ -302,10 +320,11 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 						}
 						else /* Data packet */
 						{
-							ramsource = (uint32_t)&aPacketData[PACKET_DATA_INDEX];
+							uint8_t *encrypted_data = &aPacketData[PACKET_DATA_INDEX];
 
-							/* Write received data in Flash */
-							if (FLASH_If_Write(flashdestination, (uint32_t *)ramsource, packet_length / 4) == FLASHIF_OK)
+							AES_CBC_decrypt_buffer(&ctx, encrypted_data, packet_length);
+
+							if (FLASH_If_Write(flashdestination, (uint32_t *)encrypted_data, packet_length / 4) == FLASHIF_OK)
 							{
 								flashdestination += packet_length;
 								Serial_PutByte(ACK);
