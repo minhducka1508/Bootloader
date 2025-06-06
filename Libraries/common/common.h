@@ -7,6 +7,11 @@
 #ifndef _COMMON_H_
 #define _COMMON_H_
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
 #include "main.h"
 #include "bootloader.h"
 
@@ -27,5 +32,9 @@ void Int2Str(uint8_t *p_str, uint32_t intnum);
 uint32_t Str2Int(uint8_t *inputstr, uint32_t *intnum);
 void Serial_PutString(uint8_t *p_string);
 HAL_StatusTypeDef Serial_PutByte(uint8_t param);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  /* _COMMON_H_ */

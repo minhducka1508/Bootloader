@@ -1,27 +1,9 @@
-/**
- ******************************************************************************
- * @file    IAP_Main/Src/ymodem.c
- * @author  MCD Application Team
- * @brief   This file provides all the software functions related to the ymodem
- *          protocol.
- ******************************************************************************
- * @attention
- *
- * Copyright (c) 2016 STMicroelectronics.
- * All rights reserved.
- *
- * This software is licensed under terms that can be found in the LICENSE file
- * in the root directory of this software component.
- * If no LICENSE file comes with this software, it is provided AS-IS.
- *
- ******************************************************************************
+/*
+ *	ymodem.c
+ *	Created on: May 31, 2025
+ *	    Author: Trần Minh Đức
  */
 
-/** @addtogroup STM32F0xx_IAP
- * @{
- */
-
-/* Includes ------------------------------------------------------------------*/
 #include "hld_flash.h"
 #include "hld_uart.h"
 #include "bootloader.h"
@@ -30,14 +12,10 @@
 #include "ymodem.h"
 #include "aes.h"
 
-/* Private typedef -----------------------------------------------------------*/
-/* Private define ------------------------------------------------------------*/
 #define CRC16_F /* activate the CRC16 integrity */
 
 extern uint8_t aFileName[FILE_NAME_LENGTH];
-/* Private macro -------------------------------------------------------------*/
-/* Private variables ---------------------------------------------------------*/
-/* @note ATTENTION - please keep this variable 32bit aligned */
+
 uint8_t aPacketData[PACKET_1K_SIZE + PACKET_DATA_INDEX + PACKET_TRAILER_SIZE];
 
 #define AES_KEY_LEN 16
