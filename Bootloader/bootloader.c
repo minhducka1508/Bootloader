@@ -26,6 +26,7 @@ void Bootloader_Init(void)
 void Bootloader_Task(void)
 {
 	Bootloader_YmodemReceive();
+
 	Bootloader_JumpToApplication();
 }
 
@@ -44,7 +45,6 @@ eBootloader_Status Bootloader_JumpToApplication(void)
 
 	if (emptyCellCount != 10)
 	{
-		printf("BOOT_STATUS_OK\r\n");
 		result = BOOT_STATUS_OK;
 	}
 
