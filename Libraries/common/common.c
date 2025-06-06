@@ -1,19 +1,12 @@
 /*
  *	common.c
  *	Created on: Jun 4, 2025
- *		Author: Trần Minh Đức
+ *	    Author: Trần Minh Đức
  */
 
-/* Includes ------------------------------------------------------------------*/
 #include "common.h"
 #include "hld_uart.h"
 
-/**
-  * @brief  Convert an Integer to a string
-  * @param  p_str: The string output pointer
-  * @param  intnum: The integer to be converted
-  * @retval None
-  */
 void Int2Str(uint8_t *p_str, uint32_t intnum)
 {
   uint32_t i, divider = 1000000000, pos = 0, status = 0;
@@ -35,13 +28,6 @@ void Int2Str(uint8_t *p_str, uint32_t intnum)
   }
 }
 
-/**
-  * @brief  Convert a string to an integer
-  * @param  p_inputstr: The string to be converted
-  * @param  p_intnum: The integer value
-  * @retval 1: Correct
-  *         0: Error
-  */
 uint32_t Str2Int(uint8_t *p_inputstr, uint32_t *p_intnum)
 {
   uint32_t i = 0, res = 0;
@@ -107,11 +93,6 @@ uint32_t Str2Int(uint8_t *p_inputstr, uint32_t *p_intnum)
   return res;
 }
 
-/**
-  * @brief  Print a string on the HyperTerminal
-  * @param  p_string: The string to be printed
-  * @retval None
-  */
 void Serial_PutString(uint8_t *p_string)
 {
   uint16_t length = 0;
@@ -123,11 +104,6 @@ void Serial_PutString(uint8_t *p_string)
   HLD_UART_Transmit(&UART_BOOTLOADER, p_string, length, TX_TIMEOUT);
 }
 
-/**
-  * @brief  Transmit a byte to the HyperTerminal
-  * @param  param The byte to be sent
-  * @retval HAL_StatusTypeDef HAL_OK if OK
-  */
 HAL_StatusTypeDef Serial_PutByte( uint8_t param )
 {
   return HLD_UART_Transmit(&UART_BOOTLOADER, &param, 1, TX_TIMEOUT);

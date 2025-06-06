@@ -1,8 +1,7 @@
-
 /*
  *	hld_flash.c
  *	Created on: Jun 4, 2025
- *		Author: Trần Minh Đức
+ *		  Author: Trần Minh Đức
  */
 
 #ifndef _HLD_FLASH_H_

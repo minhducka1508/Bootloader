@@ -19,4 +19,5 @@ int _write(int file, char *ptr, int len);
 #ifdef __cplusplus
 }
 #endif
+
 #endif /* _RETARGET_H_ */

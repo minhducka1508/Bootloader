@@ -1,33 +1,18 @@
-/**
-  ******************************************************************************
-  * @file    IAP_Main/Inc/ymodem.h 
-  * @author  MCD Application Team
-  * @brief   This file provides all the software function headers of the ymodem.c 
-  *          file.
-  ******************************************************************************
-  * @attention
-  *
-  * Copyright (c) 2016 STMicroelectronics.
-  * All rights reserved.
-  *
-  * This software is licensed under terms that can be found in the LICENSE file
-  * in the root directory of this software component.
-  * If no LICENSE file comes with this software, it is provided AS-IS.
-  *
-  ******************************************************************************
-  */ 
+/*
+ *	ymodem.h
+ *	Created on: May 31, 2025
+ *	    Author: Trần Minh Đức
+ */
 
-/* Define to prevent recursive inclusion -------------------------------------*/
-#ifndef __YMODEM_H_
-#define __YMODEM_H_
+#ifndef _YMODEM_H_
+#define _YMODEM_H_
 
-/* Includes ------------------------------------------------------------------*/
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "main.h"
-/* Exported types ------------------------------------------------------------*/
 
-/**
-  * @brief  Comm status structures definition
-  */
 typedef enum
 {
   COM_OK       = 0x00,
@@ -37,12 +22,7 @@ typedef enum
   COM_DATA     = 0x04,
   COM_LIMIT    = 0x05
 } COM_StatusTypeDef;
-/**
-  * @}
-  */
 
-/* Exported constants --------------------------------------------------------*/
-/* Packet structure defines */
 #define PACKET_HEADER_SIZE      ((uint32_t)3)
 #define PACKET_DATA_INDEX       ((uint32_t)4)
 #define PACKET_START_INDEX      ((uint32_t)1)
@@ -79,8 +59,10 @@ typedef enum
 #define DOWNLOAD_TIMEOUT        ((uint32_t)1000) /* One second retry delay */
 #define MAX_ERRORS              ((uint32_t)5)
 
-/* Exported functions ------------------------------------------------------- */
 COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size);
-COM_StatusTypeDef Ymodem_Transmit(uint8_t *p_buf, const uint8_t *p_file_name, uint32_t file_size);
 
-#endif  /* __YMODEM_H_ */
+#ifdef __cplusplus
+}
+#endif
+
+#endif  /* _YMODEM_H_ */
