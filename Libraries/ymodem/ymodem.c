@@ -209,12 +209,18 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 	uint32_t tick_start = HAL_GetTick();
 	uint32_t timeout_ms = 2000; // timeout 5 giây
 
-	/* Initialize flashdestination variable */
+	uint8_t decryptData[PACKET_1K_SIZE]; // bộ đệm tạm để lưu dữ liệu đã giải mã
+	uint8_t remainData[FLASH_PAGE_SIZE]; // phần dư khi ghi flash chưa đủ block
+	uint8_t writeData[PACKET_1K_SIZE];
+	uint32_t dataLengthNeedProcees = 0; // tổng số byte firmware
+	uint32_t remainByte = 0;
+	uint32_t actualDataWrite = 0;
+	FirmwareHeader_t fw_header;
+
 	flashdestination = APP_START_ADDR;
 
 	struct AES_ctx ctx;
 	AES_init_ctx_iv(&ctx, aes_key, aes_iv);
-	//Serial_PutByte(CRC16);
 
 	while ((session_done == 0) && (result == COM_OK))
 	{
@@ -298,21 +304,86 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 						}
 						else /* Data packet */
 						{
-							uint8_t *encrypted_data = &aPacketData[PACKET_DATA_INDEX];
-
-							AES_CBC_decrypt_buffer(&ctx, encrypted_data, packet_length);
-
-							if (FLASH_If_Write(flashdestination, (uint32_t *)encrypted_data, packet_length / 4) == FLASHIF_OK)
+							if (packets_received == FIRST_DATA_PACKET_IDX)
 							{
-								flashdestination += packet_length;
-								Serial_PutByte(ACK);
+								uint8_t *ramsource = &aPacketData[PACKET_DATA_INDEX];
+
+								memcpy(&fw_header, ramsource, sizeof(FirmwareHeader_t)); // phần chưa mã hóa
+
+								if (fw_header.firmwareType != MY_FIRMWARE_TYPE)
+								{
+									printf("\r\nFirmware type sai\r\n");
+									return COM_ABORT;
+								}
+
+								// Giải mã phần sau header
+								uint8_t *ciphertext = ramsource + sizeof(FirmwareHeader_t);
+								uint32_t cipher_len = packet_length - sizeof(FirmwareHeader_t);
+
+								AES_CBC_decrypt_buffer(&ctx, ciphertext, cipher_len);
+								memcpy(decryptData, ciphertext, cipher_len); // copy lại dữ liệu đã giải mã
+
+								memcpy(&fw_header, decryptData, sizeof(FirmwareHeader_t)); // header đã giải mã
+								dataLengthNeedProcees = fw_header.firmwareSize;
+
+								printf("FirmwareSize = %lu\n", fw_header.firmwareSize);
+								printf("Version = 0x%08lX\n", fw_header.firmwareVersion);
+
+								// Bắt đầu ghi phần còn lại (sau 2 header)
+								uint8_t *data_start = decryptData + sizeof(FirmwareHeader_t);
+								uint16_t data_len = cipher_len - sizeof(FirmwareHeader_t);
+
+								remainByte = data_len % FLASH_PAGE_SIZE;
+								actualDataWrite = data_len - remainByte;
+
+								if (remainByte)
+									memcpy(remainData, data_start + actualDataWrite, remainByte);
+
+								FLASH_If_Write(flashdestination, data_start, actualDataWrite);
+								flashdestination += actualDataWrite;
+								dataLengthNeedProcees -= actualDataWrite;
 							}
-							else /* An error occurred while writing to Flash memory */
+							else
 							{
-								/* End session */
-								Serial_PutByte(CA);
-								Serial_PutByte(CA);
-								result = COM_DATA;
+								uint8_t *ramsource = &aPacketData[PACKET_DATA_INDEX];
+
+								AES_CBC_decrypt_buffer(&ctx, ramsource, packet_length);
+								memcpy(decryptData, ramsource, packet_length);
+
+								uint32_t dataToWrite = (dataLengthNeedProcees < packet_length) ? dataLengthNeedProcees : packet_length;
+
+								if (remainByte > 0)
+								{
+									uint16_t newLen = dataToWrite - remainByte;
+									memcpy(writeData, remainData, remainByte);
+									memcpy(writeData + remainByte, decryptData, newLen);
+									FLASH_If_Write(flashdestination, writeData, remainByte + newLen);
+									flashdestination += remainByte + newLen;
+									dataLengthNeedProcees -= remainByte + newLen;
+
+									remainByte = dataToWrite - newLen;
+									if (dataLengthNeedProcees > 0 && dataLengthNeedProcees <= remainByte)
+									{
+										FLASH_If_Write(flashdestination, decryptData + newLen, dataLengthNeedProcees);
+										dataLengthNeedProcees = 0;
+									}
+									else
+									{
+										memcpy(remainData, decryptData + newLen, remainByte);
+									}
+								}
+								else
+								{
+									remainByte = dataToWrite % FLASH_PAGE_SIZE;
+									actualDataWrite = dataToWrite - remainByte;
+
+									FLASH_If_Write(flashdestination, decryptData, actualDataWrite);
+									flashdestination += actualDataWrite;
+									dataLengthNeedProcees -= actualDataWrite;
+
+									if (remainByte > 0)
+										memcpy(remainData, decryptData + actualDataWrite, remainByte);
+								}
 							}
 						}
 						packets_received++;
@@ -355,6 +426,3 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 	return result;
 }
 
-/**
- * @}
- */

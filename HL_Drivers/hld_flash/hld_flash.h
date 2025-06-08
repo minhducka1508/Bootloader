@@ -32,15 +32,27 @@ enum {
   FLASHIF_WRP_DISABLE
 };
 
-#define APP_START_ADDR 0x08008000
+typedef struct __attribute__((__packed__))
+{
+	uint32_t firmwareType;
+	uint32_t firmwareSize;
+	uint32_t firmwareVersion;
+	uint32_t checksumValue;
+} FirmwareHeader_t;
+
+#define MY_FIRMWARE_TYPE 				0xA5A5A5A5
+#define FIRST_DATA_PACKET_IDX 			(0x01)
+#define FLASH_PAGE_SIZE					(256)
+
+#define APP_START_ADDR 					0x08008000
 //#define APP2_START_ADDR 0x08008000
 
-#define APP_FLASH_SIZE ((uint32_t)(224 * 1024))
+#define APP_FLASH_SIZE 					((uint32_t)(224 * 1024))
 
-#define APP_END_ADDR ((uint32_t)(APP_START_ADDR + APP_FLASH_SIZE - 1))
+#define APP_END_ADDR 					((uint32_t)(APP_START_ADDR + APP_FLASH_SIZE - 1))
 
 /* Bitmap of sectors to protect (example: sectors 2–7 = bits 2 to 7) */
-#define FLASH_SECTORS_TO_BE_PROTECTED  ((uint32_t)(0x000000FC))  // sectors 2 to 7
+#define FLASH_SECTORS_TO_BE_PROTECTED  	((uint32_t)(0x000000FC))  // sectors 2 to 7
 
 void     FLASH_If_Init(void);
 uint32_t FLASH_If_Erase(uint32_t start_address);
