@@ -16,7 +16,7 @@ extern "C"
 #include "uart_config.h"
 
 #define UART_BOOTLOADER uart1_handle
-#define UART_DEBUG      uart2_handle
+#define UART_DEBUG      uart6_handle
 
 typedef enum
 {

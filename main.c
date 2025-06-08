@@ -37,9 +37,9 @@ int main(void)
 	GPIO_Config_Init();
 
 	HLD_UART_Init(&uart1_handle);
-	HLD_UART_Init(&uart2_handle);
+	HLD_UART_Init(&uart6_handle);
 
-	RetargetInit(uart2_handle.config->huart);
+	RetargetInit(uart6_handle.config->huart);
 
 	Bootloader_Init();
 }

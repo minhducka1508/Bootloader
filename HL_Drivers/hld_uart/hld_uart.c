@@ -12,9 +12,9 @@ HLD_UART_Status_t HLD_UART_Init(const HLD_UART_t *uart)
 	{
 		UART1_Config_Init();
 	}
-	else if(uart == &uart2_handle)
+	else if(uart == &uart6_handle)
 	{
-		UART2_Config_Init();
+		UART6_Config_Init();
 	}
 
 	if (uart == NULL || uart->config == NULL || uart->config->huart == NULL)
