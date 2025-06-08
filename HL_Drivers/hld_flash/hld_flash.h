@@ -32,6 +32,13 @@ enum {
   FLASHIF_WRP_DISABLE
 };
 
+typedef struct
+{
+	uint8_t bMajor;
+	uint8_t bMinor;
+	uint16_t Sub_minor;
+} structVersion_t;
+
 typedef struct __attribute__((__packed__))
 {
 	uint32_t firmwareType;

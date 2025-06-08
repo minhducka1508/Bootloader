@@ -19,8 +19,6 @@ uint8_t aFileName[FILE_NAME_LENGTH];
 
 void Bootloader_Init(void)
 {
-	printf("\r\n====> Bootloader Init <====\r\n");
-
 	Bootloader_Task();
 }
 
@@ -80,7 +78,6 @@ eBootloader_Status Bootloader_JumpToApplication(void)
 void Bootloader_YmodemReceive(void)
 {
 	uint32_t size = 0;
-	uint8_t number[11] = {0};
 	COM_StatusTypeDef result;
 
 	Serial_PutString((uint8_t *)"\r\n[BOOT] Waiting for firmware transfer via YMODEM...\r\n");
@@ -91,34 +88,30 @@ void Bootloader_YmodemReceive(void)
 
 	if (result == COM_OK)
 	{
-		printf("\r\n[0]");
-		Serial_PutString((uint8_t *)"\r\nFile received and written successfully!\r\n");
-		Serial_PutString((uint8_t *)"File name: ");
-		Serial_PutString(aFileName);
-		Int2Str(number, size);
-		Serial_PutString((uint8_t *)"\r\nSize: ");
-		Serial_PutString(number);
-		Serial_PutString((uint8_t *)" Bytes\r\n");
+		printf("\r\n======> File received and written successfully! <======\r\n");
+		printf("\r\nFile name: %s", (char *)aFileName);
+		printf("\r\nSize: %lu", fw_header.firmwareSize);
+
+		fw_version.bMajor = (uint8_t)(fw_header.firmwareVersion >> 24);
+		fw_version.bMinor = (uint8_t)(fw_header.firmwareVersion >> 16);
+		fw_version.Sub_minor = (uint16_t)(fw_header.firmwareVersion);
+		printf("\r\nVersion: %d.%d.%d", fw_version.bMajor, fw_version.bMinor, fw_version.Sub_minor);
 	}
 	else if (result == COM_LIMIT)
 	{
-		printf("\r\n[1]");
-		Serial_PutString((uint8_t *)"\r\nFile size exceeds allowed flash region!\r\n");
+		printf("\r\nFile size exceeds allowed flash region!\r\n");
 	}
 	else if (result == COM_DATA)
 	{
-		printf("\r\n[2]");
-		Serial_PutString((uint8_t *)"\r\nError writing to flash!\r\n");
+		printf("\r\nError writing to flash!\r\n");
 	}
 	else if (result == COM_ABORT)
 	{
-		printf("\r\n[3]");
-		Serial_PutString((uint8_t *)"\r\nTransfer aborted by user.\r\n");
+		printf("\r\nTransfer aborted by user.\r\n");
 	}
 	else
 	{
-		printf("\r\n[4]");
-		Serial_PutString((uint8_t *)"\r\nUnknown error occurred during file transfer.\r\n");
+		printf("\r\nUnknown error occurred during file transfer.\r\n");
 	}
 }
 

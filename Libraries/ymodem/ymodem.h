@@ -59,6 +59,9 @@ typedef enum
 #define DOWNLOAD_TIMEOUT        ((uint32_t)1000) /* One second retry delay */
 #define MAX_ERRORS              ((uint32_t)5)
 
+extern FirmwareHeader_t fw_header;
+extern structVersion_t fw_version;
+
 COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size);
 
 #ifdef __cplusplus

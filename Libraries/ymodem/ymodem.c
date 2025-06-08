@@ -12,7 +12,8 @@
 #include "ymodem.h"
 #include "aes.h"
 
-#define CRC16_F /* activate the CRC16 integrity */
+FirmwareHeader_t fw_header;
+structVersion_t fw_version;
 
 extern uint8_t aFileName[FILE_NAME_LENGTH];
 
@@ -39,19 +40,6 @@ uint16_t UpdateCRC16(uint16_t crc_in, uint8_t byte);
 uint16_t Cal_CRC16(const uint8_t *p_data, uint32_t size);
 uint8_t CalcChecksum(const uint8_t *p_data, uint32_t size);
 
-/* Private functions ---------------------------------------------------------*/
-
-/**
- * @brief  Receive a packet from sender
- * @param  data
- * @param  length
- *     0: end of transmission
- *     2: abort by sender
- *    >0: packet length
- * @param  timeout
- * @retval HAL_OK: normally return
- *         HAL_BUSY: abort by user
- */
 static HLD_UART_Status_t ReceivePacket(uint8_t *p_data, uint32_t *p_length, uint32_t timeout)
 {
 	uint32_t crc;
@@ -64,22 +52,17 @@ static HLD_UART_Status_t ReceivePacket(uint8_t *p_data, uint32_t *p_length, uint
 
 	if (status == HLD_UART_OK)
 	{
-		//printf("\r\n case HLD_OK");
 		switch (char1)
 		{
 		case SOH:
-			//printf("\r\n case SOH");
 			packet_size = PACKET_SIZE;
 			break;
 		case STX:
-			//printf("\r\n case STX");
 			packet_size = PACKET_1K_SIZE;
 			break;
 		case EOT:
-			printf("\r\n case EOT");
 			break;
 		case CA:
-			printf("\r\n case CA");
 			if ((HLD_UART_Receive(&UART_BOOTLOADER, &char1, 1, timeout) == HLD_UART_OK) && (char1 == CA))
 			{
 				packet_size = 2;
@@ -91,11 +74,9 @@ static HLD_UART_Status_t ReceivePacket(uint8_t *p_data, uint32_t *p_length, uint
 			break;
 		case ABORT1:
 		case ABORT2:
-			printf("\r\n case ABORT1_2");
 			status = HLD_UART_BUSY;
 			break;
 		default:
-			printf("\r\n case ERROR");
 			status = HLD_UART_ERROR;
 			break;
 		}
@@ -135,12 +116,6 @@ static HLD_UART_Status_t ReceivePacket(uint8_t *p_data, uint32_t *p_length, uint
 	return status;
 }
 
-/**
- * @brief  Update CRC16 for input byte
- * @param  crc_in input value
- * @param  input byte
- * @retval None
- */
 uint16_t UpdateCRC16(uint16_t crc_in, uint8_t byte)
 {
 	uint32_t crc = crc_in;
@@ -161,12 +136,6 @@ uint16_t UpdateCRC16(uint16_t crc_in, uint8_t byte)
 	return crc & 0xffffu;
 }
 
-/**
- * @brief  Cal CRC16 for YModem Packet
- * @param  data
- * @param  length
- * @retval None
- */
 uint16_t Cal_CRC16(const uint8_t *p_data, uint32_t size)
 {
 	uint32_t crc = 0;
@@ -181,12 +150,6 @@ uint16_t Cal_CRC16(const uint8_t *p_data, uint32_t size)
 	return crc & 0xffffu;
 }
 
-/**
- * @brief  Calculate Check sum for YModem Packet
- * @param  p_data Pointer to input data
- * @param  size length of input data
- * @retval uint8_t checksum value
- */
 uint8_t CalcChecksum(const uint8_t *p_data, uint32_t size)
 {
 	uint32_t sum = 0;
@@ -200,12 +163,6 @@ uint8_t CalcChecksum(const uint8_t *p_data, uint32_t size)
 	return (sum & 0xffu);
 }
 
-/* Public functions ---------------------------------------------------------*/
-/**
- * @brief  Receive a file using the ymodem protocol with CRC16.
- * @param  p_size The size of the file.
- * @retval COM_StatusTypeDef result of reception/programming
- */
 COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 {
 	uint32_t i, packet_length, session_done = 0, file_done, errors = 0, session_begin = 0;
@@ -214,7 +171,7 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 	uint8_t file_size[FILE_SIZE_LENGTH], packets_received;
 	COM_StatusTypeDef result = COM_OK;
 	uint32_t tick_start = HAL_GetTick();
-	uint32_t timeout_ms = 2000; // timeout 5 giây
+	uint32_t Bootloader_Timeout = BOOTLOADER_TIMEOUT_MS;
 
 	uint8_t decryptData[PACKET_1K_SIZE]; // bộ đệm tạm để lưu dữ liệu đã giải mã
 	uint8_t remainData[FLASH_PAGE_SIZE]; // phần dư khi ghi flash chưa đủ block
@@ -222,13 +179,11 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 	uint32_t dataLengthNeedProcees = 0; // tổng số byte firmware
 	uint32_t remainByte = 0;
 	uint32_t actualDataWrite = 0;
-	FirmwareHeader_t fw_header;
 
 	flashdestination = APP_START_ADDR;
 
 	struct AES_ctx ctx;
 	AES_init_ctx_iv(&ctx, aes_key, aes_iv);
-	int count = 0;
 
 	while ((session_done == 0) && (result == COM_OK))
 	{
@@ -236,8 +191,6 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 		file_done = 0;
 		while ((file_done == 0) && (result == COM_OK))
 		{
-			// printf("\r\ncount: %d", count);
-			count ++;
 			switch (ReceivePacket(aPacketData, &packet_length, DOWNLOAD_TIMEOUT))
 			{
 			case HLD_UART_OK:
@@ -247,22 +200,18 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 				{
 				case 2:
 					/* Abort by sender */
-					// printf("\r\n Case 2");
 					Serial_PutByte(ACK);
 					result = COM_ABORT;
 					break;
 				case 0:
-					// printf("\r\n Case 0");
 					/* End of transmission */
 					Serial_PutByte(ACK);
 					file_done = 1;
 					break;
 				default:
 					/* Normal packet */
-					// printf("\r\n Case default");
 					if (aPacketData[PACKET_NUMBER_INDEX] != packets_received)
 					{
-						// printf("\r\n[0]");
 						Serial_PutByte(NAK);
 					}
 					else
@@ -318,7 +267,6 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 						}
 						else /* Data packet */
 						{
-							// printf("\r\n[packets_received]: %d", packets_received);
 							if (packets_received == FIRST_DATA_PACKET_IDX)
 							{
 								uint8_t *ramsource = &aPacketData[PACKET_DATA_INDEX];
@@ -326,8 +274,7 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 
 								if (fw_header.firmwareType != MY_FIRMWARE_TYPE)
 								{
-									// printf("\r\n====> Firmware type fail <=====\n");
-									return COM_ABORT;
+									return COM_ERROR;
 								}
 
 								uint8_t *ciphertext = ramsource + sizeof(FirmwareHeader_t);
@@ -339,9 +286,6 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 								memcpy(&fw_header, decryptData, sizeof(FirmwareHeader_t));
 								dataLengthNeedProcees = fw_header.firmwareSize;
 
-								printf("\r\nFirmwareSize = %lu\n", fw_header.firmwareSize);
-								printf("\r\nVersion = 0x%08lX\n", fw_header.firmwareVersion);
-
 								uint8_t *data_start = decryptData + sizeof(FirmwareHeader_t);
 								uint16_t data_len = cipher_len - sizeof(FirmwareHeader_t);
 
@@ -350,7 +294,6 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 
 								if (actualDataWrite % 4 != 0)
 								{
-									// printf("\r\n[0]");
 									uint8_t pad = 4 - (actualDataWrite % 4);
 									memset(data_start + actualDataWrite, 0, pad);
 									actualDataWrite += pad;
@@ -360,19 +303,23 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 								{
 									memcpy(remainData, data_start + actualDataWrite, remainByte);
 								}
-
-								// printf("\r\n[1]");
 								
 								// Ghi flash phần chính
-								FLASH_If_Write(flashdestination, (uint32_t *)data_start, actualDataWrite / 4);
-
-								flashdestination += actualDataWrite;
-								dataLengthNeedProcees -= actualDataWrite;
-								// printf("\r\n[2]");
+								if(FLASH_If_Write(flashdestination, (uint32_t *)data_start, (actualDataWrite / 4)) == FLASHIF_OK)
+								{
+									flashdestination += actualDataWrite;
+									dataLengthNeedProcees -= actualDataWrite;
+									Serial_PutByte(ACK);
+								}
+								else
+								{
+									Serial_PutByte(CA);
+									Serial_PutByte(CA);
+									result = COM_DATA;
+								}
 							}
 							else
 							{
-								// printf("\r\n[3]");
 								uint8_t *ramsource = &aPacketData[PACKET_DATA_INDEX];
 
 								// Giải mã và copy lại để xử lý
@@ -390,7 +337,6 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 
 									uint32_t totalWrite = remainByte + newLen;
 
-									// Pad nếu không chia hết 4
 									if (totalWrite % 4 != 0)
 									{
 										uint8_t pad = 4 - (totalWrite % 4);
@@ -398,9 +344,17 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 										totalWrite += pad;
 									}
 
-									FLASH_If_Write(flashdestination, (uint32_t *)writeData, totalWrite / 4);
-									flashdestination += totalWrite;
-									dataLengthNeedProcees -= (remainByte + newLen);
+									if(FLASH_If_Write(flashdestination, (uint32_t *)writeData, (totalWrite / 4)) == FLASHIF_OK)
+									{
+										flashdestination += totalWrite;
+										dataLengthNeedProcees -= totalWrite;
+									}
+									else
+									{
+										Serial_PutByte(CA);
+										Serial_PutByte(CA);
+										result = COM_DATA;
+									}
 
 									remainByte = dataToWrite - newLen;
 
@@ -416,8 +370,16 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 											lastLen += pad;
 										}
 
-										FLASH_If_Write(flashdestination, (uint32_t *)(decryptData + newLen), lastLen / 4);
-										dataLengthNeedProcees = 0;
+										if (FLASH_If_Write(flashdestination, (uint32_t *)(decryptData + newLen), (lastLen / 4)) == FLASHIF_OK)
+										{
+											dataLengthNeedProcees = 0;
+										}
+										else
+										{
+											Serial_PutByte(CA);
+											Serial_PutByte(CA);
+											result = COM_DATA;
+										}
 									}
 									else if (remainByte > 0)
 									{
@@ -437,15 +399,24 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 										actualDataWrite += pad;
 									}
 
-									FLASH_If_Write(flashdestination, (uint32_t *)decryptData, actualDataWrite / 4);
-									flashdestination += actualDataWrite;
-									dataLengthNeedProcees -= actualDataWrite;
+									if (FLASH_If_Write(flashdestination, (uint32_t *)decryptData, (actualDataWrite / 4)) == FLASHIF_OK)
+									{
+										flashdestination += actualDataWrite;
+										dataLengthNeedProcees -= actualDataWrite;
+									}
+									else
+									{
+										Serial_PutByte(CA);
+										Serial_PutByte(CA);
+										result = COM_DATA;
+									}
 
 									if (remainByte > 0)
 									{
 										memcpy(remainData, decryptData + actualDataWrite, remainByte);
 									}
 								}
+								Serial_PutByte(ACK);
 							}
 						}
 						session_begin = 1;
@@ -455,19 +426,17 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 				}
 				break;
 			case HLD_UART_BUSY: /* Abort actually */
-				// printf("\r\n case BUSY");
 				Serial_PutByte(CA);
 				Serial_PutByte(CA);
 				result = COM_ABORT;
 				break;
 			default:
-				// printf("\r\n case Abort");
 				if (session_begin > 0)
 				{
 					errors++;
 				}
 
-				if ((HAL_GetTick() - tick_start) > timeout_ms)
+				if ((HAL_GetTick() - tick_start) > Bootloader_Timeout)
 				{
 					result = COM_ABORT;
 					break;

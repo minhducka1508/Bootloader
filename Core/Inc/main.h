@@ -42,6 +42,7 @@ extern "C" {
 #include "stdint.h"
 #include "stdbool.h"
 #include "string.h"
+#include "inttypes.h"
 
 void SystemClock_Config(void);
 

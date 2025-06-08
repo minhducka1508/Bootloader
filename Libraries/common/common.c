@@ -9,23 +9,23 @@
 
 void Int2Str(uint8_t *p_str, uint32_t intnum)
 {
-  uint32_t i, divider = 1000000000, pos = 0, status = 0;
+	uint32_t i, divider = 1000000000, pos = 0;
+	uint8_t started = 0;
 
-  for (i = 0; i < 10; i++)
-  {
-    p_str[pos++] = (intnum / divider) + 48;
+	for (i = 0; i < 10; i++)
+	{
+		uint8_t digit = intnum / divider;
+		intnum %= divider;
+		divider /= 10;
 
-    intnum = intnum % divider;
-    divider /= 10;
-    if ((p_str[pos-1] == '0') & (status == 0))
-    {
-      pos = 0;
-    }
-    else
-    {
-      status++;
-    }
-  }
+		if (digit != 0 || started || i == 9) // giữ số 0 cuối cùng nếu toàn là 0
+		{
+			p_str[pos++] = digit + '0';
+			started = 1;
+		}
+	}
+
+	p_str[pos] = '\0';
 }
 
 uint32_t Str2Int(uint8_t *p_inputstr, uint32_t *p_intnum)

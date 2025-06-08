@@ -18,6 +18,8 @@ extern "C"
 #define UART_BOOTLOADER uart1_handle
 #define UART_DEBUG      uart6_handle
 
+#define BOOTLOADER_TIMEOUT_MS		((uint32_t)2000)
+
 typedef enum
 {
     BOOT_STATUS_OK = 0U,
@@ -55,27 +57,9 @@ void Bootloader_Task(void);
 eBootloader_Status Bootloader_JumpToApplication(void);
 void Bootloader_YmodemReceive(void);
 eApp_Selection Bootloader_SelectApp(void);
-
 uint32_t readWord(uint32_t address);
-
 void jumpToApp(const uint32_t address);
-
 void deinitEverything();
-
-uint8_t Bootloader_Erase(void);
-
-uint8_t Bootloader_FlashBegin(void);
-uint8_t Bootloader_FlashNext(uint64_t data);
-uint8_t Bootloader_FlashEnd(void);
-
-uint8_t Bootloader_GetProtectionStatus(void);
-uint8_t Bootloader_ConfigProtection(uint32_t protection);
-
-uint8_t Bootloader_CheckSize(uint32_t appsize);
-uint8_t Bootloader_VerifyChecksum(void);
-uint8_t Bootloader_CheckForApplication(void);
-
-uint32_t Bootloader_GetVersion(void);
 
 #ifdef __cplusplus
 }
