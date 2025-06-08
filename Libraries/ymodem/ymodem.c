@@ -64,17 +64,22 @@ static HLD_UART_Status_t ReceivePacket(uint8_t *p_data, uint32_t *p_length, uint
 
 	if (status == HLD_UART_OK)
 	{
+		//printf("\r\n case HLD_OK");
 		switch (char1)
 		{
 		case SOH:
+			//printf("\r\n case SOH");
 			packet_size = PACKET_SIZE;
 			break;
 		case STX:
+			//printf("\r\n case STX");
 			packet_size = PACKET_1K_SIZE;
 			break;
 		case EOT:
+			printf("\r\n case EOT");
 			break;
 		case CA:
+			printf("\r\n case CA");
 			if ((HLD_UART_Receive(&UART_BOOTLOADER, &char1, 1, timeout) == HLD_UART_OK) && (char1 == CA))
 			{
 				packet_size = 2;
@@ -86,9 +91,11 @@ static HLD_UART_Status_t ReceivePacket(uint8_t *p_data, uint32_t *p_length, uint
 			break;
 		case ABORT1:
 		case ABORT2:
+			printf("\r\n case ABORT1_2");
 			status = HLD_UART_BUSY;
 			break;
 		default:
+			printf("\r\n case ERROR");
 			status = HLD_UART_ERROR;
 			break;
 		}
@@ -221,6 +228,7 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 
 	struct AES_ctx ctx;
 	AES_init_ctx_iv(&ctx, aes_key, aes_iv);
+	int count = 0;
 
 	while ((session_done == 0) && (result == COM_OK))
 	{
@@ -228,6 +236,8 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 		file_done = 0;
 		while ((file_done == 0) && (result == COM_OK))
 		{
+			// printf("\r\ncount: %d", count);
+			count ++;
 			switch (ReceivePacket(aPacketData, &packet_length, DOWNLOAD_TIMEOUT))
 			{
 			case HLD_UART_OK:
@@ -237,18 +247,22 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 				{
 				case 2:
 					/* Abort by sender */
+					// printf("\r\n Case 2");
 					Serial_PutByte(ACK);
 					result = COM_ABORT;
 					break;
 				case 0:
+					// printf("\r\n Case 0");
 					/* End of transmission */
 					Serial_PutByte(ACK);
 					file_done = 1;
 					break;
 				default:
 					/* Normal packet */
+					// printf("\r\n Case default");
 					if (aPacketData[PACKET_NUMBER_INDEX] != packets_received)
 					{
+						// printf("\r\n[0]");
 						Serial_PutByte(NAK);
 					}
 					else
@@ -304,6 +318,7 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 						}
 						else /* Data packet */
 						{
+							// printf("\r\n[packets_received]: %d", packets_received);
 							if (packets_received == FIRST_DATA_PACKET_IDX)
 							{
 								uint8_t *ramsource = &aPacketData[PACKET_DATA_INDEX];
@@ -311,7 +326,7 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 
 								if (fw_header.firmwareType != MY_FIRMWARE_TYPE)
 								{
-									printf("Firmware type sai\n");
+									// printf("\r\n====> Firmware type fail <=====\n");
 									return COM_ABORT;
 								}
 
@@ -324,8 +339,8 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 								memcpy(&fw_header, decryptData, sizeof(FirmwareHeader_t));
 								dataLengthNeedProcees = fw_header.firmwareSize;
 
-								printf("FirmwareSize = %lu\n", fw_header.firmwareSize);
-								printf("Version = 0x%08lX\n", fw_header.firmwareVersion);
+								printf("\r\nFirmwareSize = %lu\n", fw_header.firmwareSize);
+								printf("\r\nVersion = 0x%08lX\n", fw_header.firmwareVersion);
 
 								uint8_t *data_start = decryptData + sizeof(FirmwareHeader_t);
 								uint16_t data_len = cipher_len - sizeof(FirmwareHeader_t);
@@ -335,22 +350,29 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 
 								if (actualDataWrite % 4 != 0)
 								{
+									// printf("\r\n[0]");
 									uint8_t pad = 4 - (actualDataWrite % 4);
 									memset(data_start + actualDataWrite, 0, pad);
 									actualDataWrite += pad;
 								}
 
 								if (remainByte > 0)
+								{
 									memcpy(remainData, data_start + actualDataWrite, remainByte);
+								}
 
+								// printf("\r\n[1]");
+								
 								// Ghi flash phần chính
 								FLASH_If_Write(flashdestination, (uint32_t *)data_start, actualDataWrite / 4);
 
 								flashdestination += actualDataWrite;
 								dataLengthNeedProcees -= actualDataWrite;
+								// printf("\r\n[2]");
 							}
 							else
 							{
+								// printf("\r\n[3]");
 								uint8_t *ramsource = &aPacketData[PACKET_DATA_INDEX];
 
 								// Giải mã và copy lại để xử lý
@@ -426,18 +448,20 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 								}
 							}
 						}
-						packets_received++;
 						session_begin = 1;
+						packets_received++;
 					}
 					break;
 				}
 				break;
 			case HLD_UART_BUSY: /* Abort actually */
+				// printf("\r\n case BUSY");
 				Serial_PutByte(CA);
 				Serial_PutByte(CA);
 				result = COM_ABORT;
 				break;
 			default:
+				// printf("\r\n case Abort");
 				if (session_begin > 0)
 				{
 					errors++;

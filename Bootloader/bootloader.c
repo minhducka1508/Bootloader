@@ -57,14 +57,14 @@ eBootloader_Status Bootloader_JumpToApplication(void)
 		{
 		case APP_1:
 		{
-			printf("APP1 is Called\r\n");
+			printf("\r\nAPP1 is Called\r\n");
 			jumpToApp(APP_START_ADDR);
 			break;
 		}
 
 		case APP_2:
 		{
-			printf("APP2 is Called\r\n");
+			printf("\r\nAPP2 is Called\r\n");
 			jumpToApp(APP_START_ADDR);
 			break;
 		}
@@ -91,6 +91,7 @@ void Bootloader_YmodemReceive(void)
 
 	if (result == COM_OK)
 	{
+		printf("\r\n[0]");
 		Serial_PutString((uint8_t *)"\r\nFile received and written successfully!\r\n");
 		Serial_PutString((uint8_t *)"File name: ");
 		Serial_PutString(aFileName);
@@ -101,18 +102,22 @@ void Bootloader_YmodemReceive(void)
 	}
 	else if (result == COM_LIMIT)
 	{
+		printf("\r\n[1]");
 		Serial_PutString((uint8_t *)"\r\nFile size exceeds allowed flash region!\r\n");
 	}
 	else if (result == COM_DATA)
 	{
+		printf("\r\n[2]");
 		Serial_PutString((uint8_t *)"\r\nError writing to flash!\r\n");
 	}
 	else if (result == COM_ABORT)
 	{
+		printf("\r\n[3]");
 		Serial_PutString((uint8_t *)"\r\nTransfer aborted by user.\r\n");
 	}
 	else
 	{
+		printf("\r\n[4]");
 		Serial_PutString((uint8_t *)"\r\nUnknown error occurred during file transfer.\r\n");
 	}
 }
