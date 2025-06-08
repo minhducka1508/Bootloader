@@ -63,9 +63,13 @@ typedef struct
 } HLD_UART_t;
 
 extern HLD_UART_t uart1_handle;
+extern HLD_UART_t uart6_handle;
 
 void UART1_Config_Init(void);
+void UART6_Config_Init(void);
+
 void USART1_IRQHandler(void);
+void USART6_IRQHandler(void);
 
 #ifdef __cplusplus
 }
