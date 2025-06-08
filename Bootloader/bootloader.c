@@ -13,6 +13,7 @@
 #include "ymodem.h"
 
 extern UART_HandleTypeDef huart1;
+extern UART_HandleTypeDef huart2;
 
 uint8_t aFileName[FILE_NAME_LENGTH];
 

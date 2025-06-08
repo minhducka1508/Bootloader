@@ -37,25 +37,11 @@ int main(void)
 	GPIO_Config_Init();
 
 	HLD_UART_Init(&uart1_handle);
+	HLD_UART_Init(&uart2_handle);
 
-	RetargetInit(uart1_handle.config->huart);
+	RetargetInit(uart2_handle.config->huart);
 
 	Bootloader_Init();
-//	while(1)
-//	{
-//		uint8_t data[5] = {0};
-//
-//		HLD_UART_Receive(&uart1_handle, data, sizeof(data));
-//		for(uint8_t i = 0; i < sizeof(data); i++)
-//		{
-//			if(data[i] == 0x99)
-//			{
-//				HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
-//			}
-//		}
-//		HAL_Delay(5000);
-//		HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
-//	}
 }
 
 void SystemClock_Config(void)
