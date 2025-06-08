@@ -307,39 +307,45 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 							if (packets_received == FIRST_DATA_PACKET_IDX)
 							{
 								uint8_t *ramsource = &aPacketData[PACKET_DATA_INDEX];
-
-								memcpy(&fw_header, ramsource, sizeof(FirmwareHeader_t)); // phần chưa mã hóa
+								memcpy(&fw_header, ramsource, sizeof(FirmwareHeader_t));
 
 								if (fw_header.firmwareType != MY_FIRMWARE_TYPE)
 								{
-									printf("\r\nFirmware type sai\r\n");
+									printf("Firmware type sai\n");
 									return COM_ABORT;
 								}
 
-								// Giải mã phần sau header
 								uint8_t *ciphertext = ramsource + sizeof(FirmwareHeader_t);
 								uint32_t cipher_len = packet_length - sizeof(FirmwareHeader_t);
 
 								AES_CBC_decrypt_buffer(&ctx, ciphertext, cipher_len);
-								memcpy(decryptData, ciphertext, cipher_len); // copy lại dữ liệu đã giải mã
+								memcpy(decryptData, ciphertext, cipher_len);
 
-								memcpy(&fw_header, decryptData, sizeof(FirmwareHeader_t)); // header đã giải mã
+								memcpy(&fw_header, decryptData, sizeof(FirmwareHeader_t));
 								dataLengthNeedProcees = fw_header.firmwareSize;
 
 								printf("FirmwareSize = %lu\n", fw_header.firmwareSize);
 								printf("Version = 0x%08lX\n", fw_header.firmwareVersion);
 
-								// Bắt đầu ghi phần còn lại (sau 2 header)
 								uint8_t *data_start = decryptData + sizeof(FirmwareHeader_t);
 								uint16_t data_len = cipher_len - sizeof(FirmwareHeader_t);
 
 								remainByte = data_len % FLASH_PAGE_SIZE;
 								actualDataWrite = data_len - remainByte;
 
-								if (remainByte)
+								if (actualDataWrite % 4 != 0)
+								{
+									uint8_t pad = 4 - (actualDataWrite % 4);
+									memset(data_start + actualDataWrite, 0, pad);
+									actualDataWrite += pad;
+								}
+
+								if (remainByte > 0)
 									memcpy(remainData, data_start + actualDataWrite, remainByte);
 
-								FLASH_If_Write(flashdestination, data_start, actualDataWrite);
+								// Ghi flash phần chính
+								FLASH_If_Write(flashdestination, (uint32_t *)data_start, actualDataWrite / 4);
+
 								flashdestination += actualDataWrite;
 								dataLengthNeedProcees -= actualDataWrite;
 							}
@@ -347,6 +353,7 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 							{
 								uint8_t *ramsource = &aPacketData[PACKET_DATA_INDEX];
 
+								// Giải mã và copy lại để xử lý
 								AES_CBC_decrypt_buffer(&ctx, ramsource, packet_length);
 								memcpy(decryptData, ramsource, packet_length);
 
@@ -355,19 +362,42 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 								if (remainByte > 0)
 								{
 									uint16_t newLen = dataToWrite - remainByte;
+
 									memcpy(writeData, remainData, remainByte);
 									memcpy(writeData + remainByte, decryptData, newLen);
-									FLASH_If_Write(flashdestination, writeData, remainByte + newLen);
-									flashdestination += remainByte + newLen;
-									dataLengthNeedProcees -= remainByte + newLen;
+
+									uint32_t totalWrite = remainByte + newLen;
+
+									// Pad nếu không chia hết 4
+									if (totalWrite % 4 != 0)
+									{
+										uint8_t pad = 4 - (totalWrite % 4);
+										memset(writeData + totalWrite, 0, pad);
+										totalWrite += pad;
+									}
+
+									FLASH_If_Write(flashdestination, (uint32_t *)writeData, totalWrite / 4);
+									flashdestination += totalWrite;
+									dataLengthNeedProcees -= (remainByte + newLen);
 
 									remainByte = dataToWrite - newLen;
+
 									if (dataLengthNeedProcees > 0 && dataLengthNeedProcees <= remainByte)
 									{
-										FLASH_If_Write(flashdestination, decryptData + newLen, dataLengthNeedProcees);
+										uint32_t lastLen = dataLengthNeedProcees;
+
+										// Pad nếu cần
+										if (lastLen % 4 != 0)
+										{
+											uint8_t pad = 4 - (lastLen % 4);
+											memset(decryptData + newLen + lastLen, 0, pad);
+											lastLen += pad;
+										}
+
+										FLASH_If_Write(flashdestination, (uint32_t *)(decryptData + newLen), lastLen / 4);
 										dataLengthNeedProcees = 0;
 									}
-									else
+									else if (remainByte > 0)
 									{
 										memcpy(remainData, decryptData + newLen, remainByte);
 									}
@@ -377,12 +407,22 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 									remainByte = dataToWrite % FLASH_PAGE_SIZE;
 									actualDataWrite = dataToWrite - remainByte;
 
-									FLASH_If_Write(flashdestination, decryptData, actualDataWrite);
+									// Pad nếu actualDataWrite không chia hết 4
+									if (actualDataWrite % 4 != 0)
+									{
+										uint8_t pad = 4 - (actualDataWrite % 4);
+										memset(decryptData + actualDataWrite, 0, pad);
+										actualDataWrite += pad;
+									}
+
+									FLASH_If_Write(flashdestination, (uint32_t *)decryptData, actualDataWrite / 4);
 									flashdestination += actualDataWrite;
 									dataLengthNeedProcees -= actualDataWrite;
 
 									if (remainByte > 0)
+									{
 										memcpy(remainData, decryptData + actualDataWrite, remainByte);
+									}
 								}
 							}
 						}
