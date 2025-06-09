@@ -58,6 +58,8 @@ typedef struct __attribute__((__packed__))
 
 #define APP_END_ADDR 					((uint32_t)(APP_START_ADDR + APP_FLASH_SIZE - 1))
 
+#define FW_HEADER_ADDR 					(APP_END_ADDR - 15)
+
 /* Bitmap of sectors to protect (example: sectors 2–7 = bits 2 to 7) */
 #define FLASH_SECTORS_TO_BE_PROTECTED  	((uint32_t)(0x000000FC))  // sectors 2 to 7
 

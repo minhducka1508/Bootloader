@@ -5,7 +5,6 @@
  */
 
 #include "hld_flash.h"
-#include "stm32f4xx_hal.h"
 
 #define FLASHIF_OK 0
 #define FLASHIF_ERASEKO 1
