@@ -41,7 +41,7 @@ int main(void)
 
 	RetargetInit(uart1_handle.config->huart);
 
-	Bootloader_Init();
+	Bootloader_Task();
 }
 
 void SystemClock_Config(void)
