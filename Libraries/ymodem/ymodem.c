@@ -13,7 +13,7 @@
 #include "aes.h"
 
 FirmwareHeader_t fw_header;
-structVersion_t fw_version;
+structVersion_t fw_ver;
 
 extern uint8_t aFileName[FILE_NAME_LENGTH];
 
@@ -285,6 +285,9 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 
 								memcpy(&fw_header, decryptData, sizeof(FirmwareHeader_t));
 								dataLengthNeedProcees = fw_header.firmwareSize;
+
+								FLASH_If_Erase(FW_HEADER_ADDR);
+								FLASH_If_Write(FW_HEADER_ADDR, (uint32_t *)&fw_header, sizeof(FirmwareHeader_t) / 4);
 
 								uint8_t *data_start = decryptData + sizeof(FirmwareHeader_t);
 								uint16_t data_len = cipher_len - sizeof(FirmwareHeader_t);

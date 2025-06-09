@@ -60,7 +60,7 @@ typedef enum
 #define MAX_ERRORS              ((uint32_t)5)
 
 extern FirmwareHeader_t fw_header;
-extern structVersion_t fw_version;
+extern structVersion_t fw_ver;
 
 COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size);
 
