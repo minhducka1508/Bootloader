@@ -11,20 +11,22 @@
 #include "hld_flash.h"
 #include "hld_uart.h"
 #include "ymodem.h"
+#include "crc32.h"
 
 extern UART_HandleTypeDef huart1;
 extern UART_HandleTypeDef huart6;
 
 uint8_t aFileName[FILE_NAME_LENGTH];
 
-void Bootloader_Init(void)
-{
-	Bootloader_Task();
-}
+FirmwareHeader_t *pHeader;
+
+uint32_t fw_type, fw_size, fw_version, fw_checksum_value;
 
 void Bootloader_Task(void)
 {
 	Bootloader_YmodemReceive();
+
+	Bootloader_Get_InforFW();
 
 	Bootloader_JumpToApplication();
 }
@@ -55,8 +57,15 @@ eBootloader_Status Bootloader_JumpToApplication(void)
 		{
 		case APP_1:
 		{
-			printf("\r\nAPP1 is Called\r\n");
-			jumpToApp(APP_START_ADDR);
+			if(Verify_CRC((uint8_t *)APP_START_ADDR, fw_size, fw_checksum_value) == BOOT_STATUS_OK)
+			{
+				printf("\r\nAPP1 is Called\r\n");
+				jumpToApp(APP_START_ADDR);
+			}
+			else
+			{
+				printf("\r\nCheck CRC Fail");
+			}
 			break;
 		}
 
@@ -90,12 +99,6 @@ void Bootloader_YmodemReceive(void)
 	{
 		printf("\r\n======> File received and written successfully! <======\r\n");
 		printf("\r\nFile name: %s", (char *)aFileName);
-		printf("\r\nSize: %lu", fw_header.firmwareSize);
-
-		fw_version.bMajor = (uint8_t)(fw_header.firmwareVersion >> 24);
-		fw_version.bMinor = (uint8_t)(fw_header.firmwareVersion >> 16);
-		fw_version.Sub_minor = (uint16_t)(fw_header.firmwareVersion);
-		printf("\r\nVersion: %d.%d.%d", fw_version.bMajor, fw_version.bMinor, fw_version.Sub_minor);
 	}
 	else if (result == COM_LIMIT)
 	{
@@ -131,6 +134,39 @@ eApp_Selection Bootloader_SelectApp(void)
 	}
 
 	return result;
+}
+
+eBootloader_Status Verify_CRC(uint8_t *address, uint32_t length, uint32_t crc_expected)
+{
+	eBootloader_Status result = BOOT_STATUS_OK;
+	uint32_t calc_crc = CRC32_CalculateBuffer(address, length);
+
+	printf("\r\nExpected CRC: 0x%08lX", crc_expected);
+	printf("\r\nCalculated CRC: 0x%08lX", calc_crc);
+
+	if(calc_crc != crc_expected)
+	{
+		result = BOOT_STATUS_CRC_FAIL;
+	}
+
+	return result;
+}
+
+void Bootloader_Get_InforFW(void)
+{
+	pHeader = (FirmwareHeader_t *)FW_HEADER_ADDR;
+
+	fw_type = pHeader->firmwareType;
+	fw_size = pHeader->firmwareSize;
+	fw_version = pHeader->firmwareVersion;
+	fw_checksum_value = pHeader->checksumValue;
+
+	fw_ver.bMajor = (uint8_t)(fw_version >> 24);
+	fw_ver.bMinor = (uint8_t)(fw_version >> 16);
+	fw_ver.Sub_minor = (uint16_t)(fw_version);
+
+	printf("\r\nFirmware Version: %d.%d.%d", fw_ver.bMajor, fw_ver.bMinor, fw_ver.Sub_minor);
+	printf("\r\nSize: %lu", fw_size);
 }
 
 uint32_t readWord(uint32_t address)

@@ -52,11 +52,12 @@ typedef struct
 } JumpStruct;
 
 /* Functions -----------------------------------------------------------------*/
-void Bootloader_Init(void);
 void Bootloader_Task(void);
 eBootloader_Status Bootloader_JumpToApplication(void);
 void Bootloader_YmodemReceive(void);
 eApp_Selection Bootloader_SelectApp(void);
+eBootloader_Status Verify_CRC(uint8_t *address, uint32_t length, uint32_t crc_expected);
+void Bootloader_Get_InforFW(void);
 uint32_t readWord(uint32_t address);
 void jumpToApp(const uint32_t address);
 void deinitEverything();
