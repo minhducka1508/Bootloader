@@ -16,72 +16,77 @@
 extern UART_HandleTypeDef huart1;
 extern UART_HandleTypeDef huart6;
 
+/* Config Address Flash */
+uint32_t APP_START_ADDR, APP_FLASH_SIZE, APP_END_ADDR, JUM_TO_APP_ADDR;
+uint32_t current_active_flag, previous_active_flag;
+
 uint8_t aFileName[FILE_NAME_LENGTH];
 
 FirmwareHeader_t *pHeader;
 
 uint32_t fw_type, fw_size, fw_version, fw_checksum_value;
 
+/* Private function prototypes -----------------------------------------------*/
+void 				Bootloader_JumpToApplication(void);
+void 				Bootloader_YmodemReceive(void);
+void 				Bootloader_SelectMem_Fota(void);
+void 				Bootloader_Get_InforFW(void);
+eApp_Selection 		Bootloader_SelectApp(void);
+uint32_t 			readWord(uint32_t address);
+uint32_t 			GetActiveAppFlag(void);
+eBootloader_Status 	Verify_CRC(uint8_t *address, uint32_t length, uint32_t crc_expected);
+void 				jumpToApp(const uint32_t address);
+void 				deinitEverything();
+
+
 void Bootloader_Task(void)
 {
+	printf("\r\n*********************START*******************\r\n");
+	Bootloader_SelectMem_Fota();
+	
 	Bootloader_YmodemReceive();
-
-	Bootloader_Get_InforFW();
 
 	Bootloader_JumpToApplication();
 }
 
-eBootloader_Status Bootloader_JumpToApplication(void)
+void Bootloader_JumpToApplication(void)
 {
-	eBootloader_Status result = BOOT_STATUS_ERROR;
-	uint8_t emptyCellCount = 0;
+	eApp_Selection Select_App = Bootloader_SelectApp();
 
-	for (uint8_t i = 0; i < 10; i++)
+	switch(Select_App)
 	{
-		if (readWord(APP_START_ADDR + (i * 4)) == -1)
-		{
-			emptyCellCount++;
-		}
-	}
-
-	if (emptyCellCount != 10)
-	{
-		result = BOOT_STATUS_OK;
-	}
-
-	if(result == BOOT_STATUS_OK)
-	{
-		eApp_Selection Select_App = Bootloader_SelectApp();
-
-		switch(Select_App)
-		{
 		case APP_1:
 		{
-			if(Verify_CRC((uint8_t *)APP_START_ADDR, fw_size, fw_checksum_value) == BOOT_STATUS_OK)
-			{
-				printf("\r\nAPP1 is Called\r\n");
-				jumpToApp(APP_START_ADDR);
-			}
-			else
-			{
-				printf("\r\nCheck CRC Fail");
-			}
+			JUM_TO_APP_ADDR = APP1_START_ADDR;
+			printf("\r\n=====> Appliction 1 is called <=====\r\n");
 			break;
 		}
 
 		case APP_2:
 		{
-			printf("\r\nAPP2 is Called\r\n");
-			jumpToApp(APP_START_ADDR);
+			printf("\r\n=====> Appliction 2 is called <=====\r\n");
+			JUM_TO_APP_ADDR = APP2_START_ADDR;
 			break;
 		}
 
 		default:
 			break;
-		}
 	}
 
-	return result;
+	if(Select_App == APP_1 || Select_App == APP_2)
+	{
+		Bootloader_Get_InforFW();
+
+		if (Verify_CRC((uint8_t *)JUM_TO_APP_ADDR, fw_size, fw_checksum_value) == BOOT_STATUS_OK)
+		{
+			printf("\r\n=====> Check CRC OK ! <=====\r\n");
+			jumpToApp(JUM_TO_APP_ADDR);
+		}
+		else
+		{
+			printf("\r\n=====> Check CRC Fail ! <=====\r\n");
+		}
+	}
 }
 
 void Bootloader_YmodemReceive(void)
@@ -97,40 +102,91 @@ void Bootloader_YmodemReceive(void)
 
 	if (result == COM_OK)
 	{
-		printf("\r\n======> File received and written successfully! <======\r\n");
+		printf("\r\n=====> File received and written successfully! <=====\r\n");
 		printf("\r\nFile name: %s", (char *)aFileName);
 	}
 	else if (result == COM_LIMIT)
 	{
-		printf("\r\nFile size exceeds allowed flash region!\r\n");
+		printf("\r\n=====> File size exceeds allowed flash region! <=====\r\n");
 	}
 	else if (result == COM_DATA)
 	{
-		printf("\r\nError writing to flash!\r\n");
+		printf("\r\n=====> Error writing to flash! <=====\r\n");
 	}
 	else if (result == COM_ABORT)
 	{
-		printf("\r\nTransfer aborted by user.\r\n");
+		printf("\r\n=====> Transfer aborted by user. <=====\r\n");
 	}
 	else
 	{
-		printf("\r\nUnknown error occurred during file transfer.\r\n");
+		printf("\r\n=====> Unknown error occurred during file transfer. <=====\r\n");
+	}
+}
+
+uint32_t GetActiveAppFlag(void)
+{
+	return *(volatile uint32_t *)ACTIVE_APP_FLAG_ADDR;
+}
+
+void Bootloader_SelectMem_Fota(void)
+{
+	current_active_flag = GetActiveAppFlag();
+
+	switch (current_active_flag)
+	{
+		case ACTIVE_APP_FLAG_VALUE_A:
+		{
+			APP_START_ADDR = APP2_START_ADDR;
+			APP_FLASH_SIZE = APP2_FLASH_SIZE;
+			APP_END_ADDR = APP2_END_ADDR;
+			break;
+		}
+
+		case ACTIVE_APP_FLAG_VALUE_B:
+		{
+			APP_START_ADDR = APP1_START_ADDR;
+			APP_FLASH_SIZE = APP1_FLASH_SIZE;
+			APP_END_ADDR = APP1_END_ADDR;
+			break;
+		}
+
+		default:
+		{
+			current_active_flag = 0xAAAAAAAA;
+			APP_START_ADDR = APP1_START_ADDR;
+			APP_FLASH_SIZE = APP1_FLASH_SIZE;
+			APP_END_ADDR = APP1_END_ADDR;
+			break;
+		}
 	}
 }
 
 eApp_Selection Bootloader_SelectApp(void)
 {
-	eApp_Selection result = APP_1;
+	eApp_Selection result;
 
-	GPIO_PinState Select_App = HAL_GPIO_ReadPin(App_GPIO_Port, App_Pin);
+	current_active_flag = GetActiveAppFlag();
 
-	if(Select_App == GPIO_PIN_SET)
+	switch (current_active_flag)
 	{
-		result = APP_1;
-	}
-	else
-	{
-		result = APP_2;
+		case ACTIVE_APP_FLAG_VALUE_A:
+		{
+			result = APP_1;
+			break;
+		}
+
+		case ACTIVE_APP_FLAG_VALUE_B:
+		{
+			result = APP_2;
+			break;
+		}
+		
+		default:
+		{
+			printf("\r\n=====> No valid application firmware found in memory. <=====\r\n");
+			result = NO_VALID;
+			break;
+		}
 	}
 
 	return result;
@@ -154,7 +210,7 @@ eBootloader_Status Verify_CRC(uint8_t *address, uint32_t length, uint32_t crc_ex
 
 void Bootloader_Get_InforFW(void)
 {
-	pHeader = (FirmwareHeader_t *)FW_HEADER_ADDR;
+	pHeader = (FirmwareHeader_t *)FW_HEADER_START_ADDR;
 
 	fw_type = pHeader->firmwareType;
 	fw_size = pHeader->firmwareSize;
@@ -166,7 +222,7 @@ void Bootloader_Get_InforFW(void)
 	fw_ver.Sub_minor = (uint16_t)(fw_version);
 
 	printf("\r\nFirmware Version: %d.%d.%d", fw_ver.bMajor, fw_ver.bMinor, fw_ver.Sub_minor);
-	printf("\r\nSize: %lu", fw_size);
+	printf("\r\nFirmware Size: %lu bytes", fw_size);
 }
 
 uint32_t readWord(uint32_t address)

@@ -207,6 +207,25 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 					/* End of transmission */
 					Serial_PutByte(ACK);
 					file_done = 1;
+					/* Flash header & active app flag */
+					FLASH_If_Erase(FW_HEADER_START_ADDR, FW_HEADER_END_ADDR);
+
+					FLASH_If_Write(FW_HEADER_START_ADDR, (uint32_t *)&fw_header, sizeof(FirmwareHeader_t) / 4);
+
+					if (current_active_flag == ACTIVE_APP_FLAG_VALUE_A)
+					{
+						previous_active_flag = ACTIVE_APP_FLAG_VALUE_B;
+					}
+					else if (current_active_flag == ACTIVE_APP_FLAG_VALUE_B)
+					{
+						previous_active_flag = ACTIVE_APP_FLAG_VALUE_A;
+					}
+					else if (current_active_flag == 0xAAAAAAAA)
+					{
+						previous_active_flag = ACTIVE_APP_FLAG_VALUE_A;
+					}
+
+					FLASH_If_Write(ACTIVE_APP_FLAG_ADDR, &previous_active_flag, 1);
 					break;
 				default:
 					/* Normal packet */
@@ -250,7 +269,7 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 									result = COM_LIMIT;
 								}
 								/* erase user application area */
-								FLASH_If_Erase(APP_START_ADDR);
+								FLASH_If_Erase(APP_START_ADDR, APP_END_ADDR);
 								*p_size = filesize;
 
 								Serial_PutByte(ACK);
@@ -285,10 +304,7 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 
 								memcpy(&fw_header, decryptData, sizeof(FirmwareHeader_t));
 								dataLengthNeedProcees = fw_header.firmwareSize;
-
-								FLASH_If_Erase(FW_HEADER_ADDR);
-								FLASH_If_Write(FW_HEADER_ADDR, (uint32_t *)&fw_header, sizeof(FirmwareHeader_t) / 4);
-
+								
 								uint8_t *data_start = decryptData + sizeof(FirmwareHeader_t);
 								uint16_t data_len = cipher_len - sizeof(FirmwareHeader_t);
 

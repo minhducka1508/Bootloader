@@ -40,7 +40,8 @@ typedef enum
 typedef enum
 {
 	APP_1,
-	APP_2
+	APP_2,
+	NO_VALID
 } eApp_Selection;
 
 typedef void(application_t)(void);
@@ -51,16 +52,11 @@ typedef struct
 	application_t *func_p; // Program Counter
 } JumpStruct;
 
+extern uint32_t APP_START_ADDR, APP_FLASH_SIZE, APP_END_ADDR, JUM_TO_APP_ADDR;
+extern uint32_t current_active_flag, previous_active_flag;
+
 /* Functions -----------------------------------------------------------------*/
-void Bootloader_Task(void);
-eBootloader_Status Bootloader_JumpToApplication(void);
-void Bootloader_YmodemReceive(void);
-eApp_Selection Bootloader_SelectApp(void);
-eBootloader_Status Verify_CRC(uint8_t *address, uint32_t length, uint32_t crc_expected);
-void Bootloader_Get_InforFW(void);
-uint32_t readWord(uint32_t address);
-void jumpToApp(const uint32_t address);
-void deinitEverything();
+void 				Bootloader_Task(void);
 
 #ifdef __cplusplus
 }

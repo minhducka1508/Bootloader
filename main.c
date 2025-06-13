@@ -39,7 +39,7 @@ int main(void)
 	HLD_UART_Init(&uart1_handle);
 	HLD_UART_Init(&uart6_handle);
 
-	RetargetInit(uart1_handle.config->huart);
+	RetargetInit(uart6_handle.config->huart);
 
 	Bootloader_Task();
 }

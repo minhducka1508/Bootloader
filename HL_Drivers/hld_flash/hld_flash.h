@@ -51,20 +51,28 @@ typedef struct __attribute__((__packed__))
 #define FIRST_DATA_PACKET_IDX 			(0x01)
 #define FLASH_PAGE_SIZE					(256)
 
-#define APP_START_ADDR 					0x08008000
-//#define APP2_START_ADDR 0x08008000
+#define APP1_START_ADDR 				0x0800C000
+#define APP2_START_ADDR 				0x08040000
 
-#define APP_FLASH_SIZE 					((uint32_t)(224 * 1024))
+#define APP1_FLASH_SIZE 				((uint32_t)(208 * 1024))
+#define APP2_FLASH_SIZE 				((uint32_t)(256 * 1024))
 
-#define APP_END_ADDR 					((uint32_t)(APP_START_ADDR + APP_FLASH_SIZE - 1))
+#define APP1_END_ADDR 					((uint32_t)(APP1_START_ADDR + APP1_FLASH_SIZE - 1))
+#define APP2_END_ADDR 					((uint32_t)(APP2_START_ADDR + APP2_FLASH_SIZE - 1))
 
-#define FW_HEADER_ADDR 					(APP_END_ADDR - 15)
+#define FW_HEADER_START_ADDR 			0x08008000
+#define FW_HEADER_FLASH_SIZE 			((uint32_t)(16 * 1024))
+#define FW_HEADER_END_ADDR 				((uint32_t)(FW_HEADER_START_ADDR + FW_HEADER_FLASH_SIZE - 1))
+
+#define ACTIVE_APP_FLAG_ADDR 			(FW_HEADER_START_ADDR + 0x14)
+#define ACTIVE_APP_FLAG_VALUE_A 		0xAABBCCDD
+#define ACTIVE_APP_FLAG_VALUE_B 		0x11223344
 
 /* Bitmap of sectors to protect (example: sectors 2–7 = bits 2 to 7) */
 #define FLASH_SECTORS_TO_BE_PROTECTED  	((uint32_t)(0x000000FC))  // sectors 2 to 7
 
 void     FLASH_If_Init(void);
-uint32_t FLASH_If_Erase(uint32_t start_address);
+uint32_t FLASH_If_Erase(uint32_t start_addr, uint32_t end_addr);
 uint32_t FLASH_If_Write(uint32_t destination, uint32_t *p_source, uint32_t length);
 uint32_t FLASH_If_GetWriteProtectionStatus(void);
 uint32_t FLASH_If_WriteProtectionConfig(uint32_t protectionstate);

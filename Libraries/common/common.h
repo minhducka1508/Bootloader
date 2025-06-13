@@ -28,10 +28,10 @@ extern "C"
 #define CONVERTHEX_ALPHA(c) (IS_CAP_LETTER(c) ? ((c) - 'A'+10) : ((c) - 'a'+10))
 #define CONVERTHEX(c)       (IS_09(c) ? ((c) - '0') : CONVERTHEX_ALPHA(c))
 
-void Int2Str(uint8_t *p_str, uint32_t intnum);
-uint32_t Str2Int(uint8_t *inputstr, uint32_t *intnum);
-void Serial_PutString(uint8_t *p_string);
-HAL_StatusTypeDef Serial_PutByte(uint8_t param);
+void 				Int2Str(uint8_t *p_str, uint32_t intnum);
+uint32_t 			Str2Int(uint8_t *inputstr, uint32_t *intnum);
+void 				Serial_PutString(uint8_t *p_string);
+HAL_StatusTypeDef 	Serial_PutByte(uint8_t param);
 
 #ifdef __cplusplus
 }

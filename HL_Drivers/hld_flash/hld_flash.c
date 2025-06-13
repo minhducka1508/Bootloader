@@ -28,16 +28,17 @@ void FLASH_If_Init(void)
  * @brief  Erases the flash from start address to end address
  * @param  start: start address to erase from
  */
-uint32_t FLASH_If_Erase(uint32_t start)
+uint32_t FLASH_If_Erase(uint32_t start_addr, uint32_t end_addr)
 {
 	HAL_StatusTypeDef status;
-	uint32_t FirstSector, NbOfSectors, SectorError;
+	uint32_t FirstSector, LastSector, NbOfSectors, SectorError;
 	FLASH_EraseInitTypeDef EraseInitStruct;
 
 	HAL_FLASH_Unlock();
 
-	FirstSector = GetSector(start);
-	NbOfSectors = GetSector(APP_END_ADDR) - FirstSector + 1;
+	FirstSector = GetSector(start_addr);
+	LastSector = GetSector(end_addr);
+	NbOfSectors = LastSector - FirstSector + 1;
 
 	EraseInitStruct.TypeErase = FLASH_TYPEERASE_SECTORS;
 	EraseInitStruct.VoltageRange = FLASH_VOLTAGE_RANGE_3;
@@ -50,6 +51,7 @@ uint32_t FLASH_If_Erase(uint32_t start)
 
 	return (status == HAL_OK) ? FLASHIF_OK : FLASHIF_ERASEKO;
 }
+
 
 /**
  * @brief  Writes data to flash
