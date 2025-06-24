@@ -41,7 +41,7 @@ void 				deinitEverything();
 
 void Bootloader_Task(void)
 {
-	printf("\r\n*********************START*******************\r\n");
+	printf("\r\n*********************BOOTLOADER TASK*******************\r\n");
 	Bootloader_SelectMem_Fota();
 	
 	Bootloader_YmodemReceive();
@@ -94,9 +94,9 @@ void Bootloader_YmodemReceive(void)
 	uint32_t size = 0;
 	COM_StatusTypeDef result;
 
-	Serial_PutString((uint8_t *)"\r\n[BOOT] Waiting for firmware transfer via YMODEM...\r\n");
-	Serial_PutString((uint8_t *)"Hint: Use TeraTerm or another YMODEM tool on PC to send the .bin file\n\r");
-	Serial_PutString((uint8_t *)"Press 'a' to cancel.\r\n");
+	printf("\r\n[BOOT] Waiting for firmware transfer via YMODEM...\r\n");
+	printf("Hint: Use TeraTerm or another YMODEM tool on PC to send the .bin file\n\r");
+	printf("Press 'a' to cancel.\r\n");
 
 	result = Ymodem_Receive(&size);
 
