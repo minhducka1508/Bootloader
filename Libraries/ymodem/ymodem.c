@@ -166,21 +166,20 @@ uint8_t CalcChecksum(const uint8_t *p_data, uint32_t size)
 COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 {
 	uint32_t i, packet_length, session_done = 0, file_done, errors = 0, session_begin = 0;
-	uint32_t flashdestination, filesize;
+	uint32_t flashdestination = 0;
+	uint32_t filesize;
 	uint8_t *file_ptr;
 	uint8_t file_size[FILE_SIZE_LENGTH], packets_received;
 	COM_StatusTypeDef result = COM_OK;
 	uint32_t tick_start = HAL_GetTick();
 	uint32_t Bootloader_Timeout = BOOTLOADER_TIMEOUT_MS;
 
-	uint8_t decryptData[PACKET_1K_SIZE]; // bộ đệm tạm để lưu dữ liệu đã giải mã
-	uint8_t remainData[FLASH_PAGE_SIZE]; // phần dư khi ghi flash chưa đủ block
+	uint8_t decryptData[PACKET_1K_SIZE];
+	uint8_t remainData[FLASH_PAGE_SIZE];
 	uint8_t writeData[PACKET_1K_SIZE];
-	uint32_t dataLengthNeedProcees = 0; // tổng số byte firmware
+	uint32_t dataLengthNeedProcees = 0;
 	uint32_t remainByte = 0;
 	uint32_t actualDataWrite = 0;
-
-	flashdestination = APP_START_ADDR;
 
 	struct AES_ctx ctx;
 	AES_init_ctx_iv(&ctx, aes_key, aes_iv);
@@ -199,36 +198,19 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 				switch (packet_length)
 				{
 				case 2:
-					/* Abort by sender */
 					Serial_PutByte(ACK);
 					result = COM_ABORT;
 					break;
 				case 0:
-					/* End of transmission */
 					Serial_PutByte(ACK);
 					file_done = 1;
-					/* Flash header & active app flag */
+
+					// Ghi header firmware ra vùng header rõ ràng
 					FLASH_If_Erase(FW_HEADER_START_ADDR, FW_HEADER_END_ADDR);
-
 					FLASH_If_Write(FW_HEADER_START_ADDR, (uint32_t *)&fw_header, sizeof(FirmwareHeader_t) / 4);
-
-					if (current_active_flag == ACTIVE_APP_FLAG_VALUE_A)
-					{
-						previous_active_flag = ACTIVE_APP_FLAG_VALUE_B;
-					}
-					else if (current_active_flag == ACTIVE_APP_FLAG_VALUE_B)
-					{
-						previous_active_flag = ACTIVE_APP_FLAG_VALUE_A;
-					}
-					else if (current_active_flag == 0xAAAAAAAA)
-					{
-						previous_active_flag = ACTIVE_APP_FLAG_VALUE_A;
-					}
-
-					FLASH_If_Write(ACTIVE_APP_FLAG_ADDR, &previous_active_flag, 1);
 					break;
+
 				default:
-					/* Normal packet */
 					if (aPacketData[PACKET_NUMBER_INDEX] != packets_received)
 					{
 						Serial_PutByte(NAK);
@@ -237,45 +219,33 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 					{
 						if (packets_received == 0)
 						{
-							/* File name packet */
+							// Gói tên file đầu tiên
 							if (aPacketData[PACKET_DATA_INDEX] != 0)
 							{
-								/* File name extraction */
 								i = 0;
 								file_ptr = aPacketData + PACKET_DATA_INDEX;
 								while ((*file_ptr != 0) && (i < FILE_NAME_LENGTH))
-								{
 									aFileName[i++] = *file_ptr++;
-								}
-
-								/* File size extraction */
 								aFileName[i++] = '\0';
+
 								i = 0;
 								file_ptr++;
 								while ((*file_ptr != ' ') && (i < FILE_SIZE_LENGTH))
-								{
 									file_size[i++] = *file_ptr++;
-								}
 								file_size[i++] = '\0';
 								Str2Int(file_size, &filesize);
 
-								/* Test the size of the image to be sent */
-								/* Image size is greater than Flash size */
 								if (*p_size > (APP_FLASH_SIZE + 1))
 								{
-									/* End session */
 									uint8_t ca_buf[2] = {CA, CA};
 									HLD_UART_Transmit(&UART_BOOTLOADER, ca_buf, 2, NAK_TIMEOUT);
 									result = COM_LIMIT;
 								}
-								/* erase user application area */
-								FLASH_If_Erase(APP_START_ADDR, APP_END_ADDR);
-								*p_size = filesize;
 
+								*p_size = filesize;
 								Serial_PutByte(ACK);
 								Serial_PutByte(CRC16);
 							}
-							/* File header packet is empty, end session */
 							else
 							{
 								Serial_PutByte(ACK);
@@ -284,18 +254,25 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 								break;
 							}
 						}
-						else /* Data packet */
+						else
 						{
 							if (packets_received == FIRST_DATA_PACKET_IDX)
 							{
 								uint8_t *ramsource = &aPacketData[PACKET_DATA_INDEX];
 								memcpy(&fw_header, ramsource, sizeof(FirmwareHeader_t));
 
+								// Kiểm tra firmwareType
 								if (fw_header.firmwareType != MY_FIRMWARE_TYPE)
-								{
 									return COM_ERROR;
-								}
 
+								// === THÊM PHÂN TÍCH metadata ===
+								Bootloader_SelectMem_Fota(fw_header.metaData);
+								flashdestination = APP_START_ADDR;
+
+								// Xóa vùng app tương ứng
+								FLASH_If_Erase(APP1_START_ADDR, APP1_END_ADDR);
+
+								// giải mã phần còn lại
 								uint8_t *ciphertext = ramsource + sizeof(FirmwareHeader_t);
 								uint32_t cipher_len = packet_length - sizeof(FirmwareHeader_t);
 
@@ -304,7 +281,7 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 
 								memcpy(&fw_header, decryptData, sizeof(FirmwareHeader_t));
 								dataLengthNeedProcees = fw_header.firmwareSize;
-								
+
 								uint8_t *data_start = decryptData + sizeof(FirmwareHeader_t);
 								uint16_t data_len = cipher_len - sizeof(FirmwareHeader_t);
 
@@ -319,12 +296,9 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 								}
 
 								if (remainByte > 0)
-								{
 									memcpy(remainData, data_start + actualDataWrite, remainByte);
-								}
-								
-								// Ghi flash phần chính
-								if(FLASH_If_Write(flashdestination, (uint32_t *)data_start, (actualDataWrite / 4)) == FLASHIF_OK)
+
+								if (FLASH_If_Write(flashdestination, (uint32_t *)data_start, actualDataWrite / 4) == FLASHIF_OK)
 								{
 									flashdestination += actualDataWrite;
 									dataLengthNeedProcees -= actualDataWrite;
@@ -340,8 +314,6 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 							else
 							{
 								uint8_t *ramsource = &aPacketData[PACKET_DATA_INDEX];
-
-								// Giải mã và copy lại để xử lý
 								AES_CBC_decrypt_buffer(&ctx, ramsource, packet_length);
 								memcpy(decryptData, ramsource, packet_length);
 
@@ -355,7 +327,6 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 									memcpy(writeData + remainByte, decryptData, newLen);
 
 									uint32_t totalWrite = remainByte + newLen;
-
 									if (totalWrite % 4 != 0)
 									{
 										uint8_t pad = 4 - (totalWrite % 4);
@@ -363,7 +334,7 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 										totalWrite += pad;
 									}
 
-									if(FLASH_If_Write(flashdestination, (uint32_t *)writeData, (totalWrite / 4)) == FLASHIF_OK)
+									if (FLASH_If_Write(flashdestination, (uint32_t *)writeData, totalWrite / 4) == FLASHIF_OK)
 									{
 										flashdestination += totalWrite;
 										dataLengthNeedProcees -= totalWrite;
@@ -376,12 +347,9 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 									}
 
 									remainByte = dataToWrite - newLen;
-
 									if (dataLengthNeedProcees > 0 && dataLengthNeedProcees <= remainByte)
 									{
 										uint32_t lastLen = dataLengthNeedProcees;
-
-										// Pad nếu cần
 										if (lastLen % 4 != 0)
 										{
 											uint8_t pad = 4 - (lastLen % 4);
@@ -389,7 +357,7 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 											lastLen += pad;
 										}
 
-										if (FLASH_If_Write(flashdestination, (uint32_t *)(decryptData + newLen), (lastLen / 4)) == FLASHIF_OK)
+										if (FLASH_If_Write(flashdestination, (uint32_t *)(decryptData + newLen), lastLen / 4) == FLASHIF_OK)
 										{
 											dataLengthNeedProcees = 0;
 										}
@@ -410,7 +378,6 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 									remainByte = dataToWrite % FLASH_PAGE_SIZE;
 									actualDataWrite = dataToWrite - remainByte;
 
-									// Pad nếu actualDataWrite không chia hết 4
 									if (actualDataWrite % 4 != 0)
 									{
 										uint8_t pad = 4 - (actualDataWrite % 4);
@@ -418,7 +385,7 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 										actualDataWrite += pad;
 									}
 
-									if (FLASH_If_Write(flashdestination, (uint32_t *)decryptData, (actualDataWrite / 4)) == FLASHIF_OK)
+									if (FLASH_If_Write(flashdestination, (uint32_t *)decryptData, actualDataWrite / 4) == FLASHIF_OK)
 									{
 										flashdestination += actualDataWrite;
 										dataLengthNeedProcees -= actualDataWrite;
@@ -431,9 +398,7 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 									}
 
 									if (remainByte > 0)
-									{
 										memcpy(remainData, decryptData + actualDataWrite, remainByte);
-									}
 								}
 								Serial_PutByte(ACK);
 							}
@@ -444,16 +409,16 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 					break;
 				}
 				break;
-			case HLD_UART_BUSY: /* Abort actually */
+
+			case HLD_UART_BUSY:
 				Serial_PutByte(CA);
 				Serial_PutByte(CA);
 				result = COM_ABORT;
 				break;
+
 			default:
 				if (session_begin > 0)
-				{
 					errors++;
-				}
 
 				if ((HAL_GetTick() - tick_start) > Bootloader_Timeout)
 				{
@@ -463,13 +428,12 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 
 				if (errors > MAX_ERRORS)
 				{
-					/* Abort communication */
 					Serial_PutByte(CA);
 					Serial_PutByte(CA);
 				}
 				else
 				{
-					Serial_PutByte(CRC16); /* Ask for a packet */
+					Serial_PutByte(CRC16);
 				}
 				break;
 			}
@@ -477,4 +441,3 @@ COM_StatusTypeDef Ymodem_Receive(uint32_t *p_size)
 	}
 	return result;
 }
-

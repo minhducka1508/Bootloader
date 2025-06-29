@@ -18,18 +18,16 @@ extern UART_HandleTypeDef huart6;
 
 /* Config Address Flash */
 uint32_t APP_START_ADDR, APP_FLASH_SIZE, APP_END_ADDR, JUM_TO_APP_ADDR;
-uint32_t current_active_flag, previous_active_flag;
 
 uint8_t aFileName[FILE_NAME_LENGTH];
 
 FirmwareHeader_t *pHeader;
 
-uint32_t fw_type, fw_size, fw_version, fw_checksum_value;
+uint32_t fw_type, fw_size, fw_version, fw_checksum_value, fw_meta_data;
 
 /* Private function prototypes -----------------------------------------------*/
 void 				Bootloader_JumpToApplication(void);
 void 				Bootloader_YmodemReceive(void);
-void 				Bootloader_SelectMem_Fota(void);
 void 				Bootloader_Get_InforFW(void);
 eApp_Selection 		Bootloader_SelectApp(void);
 uint32_t 			readWord(uint32_t address);
@@ -42,7 +40,6 @@ void 				deinitEverything();
 void Bootloader_Task(void)
 {
 	printf("\r\n*********************BOOTLOADER TASK*******************\r\n");
-	Bootloader_SelectMem_Fota();
 	
 	Bootloader_YmodemReceive();
 
@@ -128,25 +125,23 @@ uint32_t GetActiveAppFlag(void)
 	return *(volatile uint32_t *)ACTIVE_APP_FLAG_ADDR;
 }
 
-void Bootloader_SelectMem_Fota(void)
+void Bootloader_SelectMem_Fota(uint32_t current_active_flag)
 {
-	current_active_flag = GetActiveAppFlag();
-
 	switch (current_active_flag)
 	{
 		case ACTIVE_APP_FLAG_VALUE_A:
 		{
-			APP_START_ADDR = APP2_START_ADDR;
-			APP_FLASH_SIZE = APP2_FLASH_SIZE;
-			APP_END_ADDR = APP2_END_ADDR;
+			APP_START_ADDR = APP1_START_ADDR;
+			APP_FLASH_SIZE = APP1_FLASH_SIZE;
+			APP_END_ADDR = APP1_END_ADDR;
 			break;
 		}
 
 		case ACTIVE_APP_FLAG_VALUE_B:
 		{
-			APP_START_ADDR = APP1_START_ADDR;
-			APP_FLASH_SIZE = APP1_FLASH_SIZE;
-			APP_END_ADDR = APP1_END_ADDR;
+			APP_START_ADDR = APP2_START_ADDR;
+			APP_FLASH_SIZE = APP2_FLASH_SIZE;
+			APP_END_ADDR = APP2_END_ADDR;
 			break;
 		}
 
@@ -165,7 +160,7 @@ eApp_Selection Bootloader_SelectApp(void)
 {
 	eApp_Selection result;
 
-	current_active_flag = GetActiveAppFlag();
+	uint32_t current_active_flag = GetActiveAppFlag();
 
 	switch (current_active_flag)
 	{
@@ -216,10 +211,13 @@ void Bootloader_Get_InforFW(void)
 	fw_size = pHeader->firmwareSize;
 	fw_version = pHeader->firmwareVersion;
 	fw_checksum_value = pHeader->checksumValue;
+	fw_meta_data = pHeader->metaData;
 
 	fw_ver.bMajor = (uint8_t)(fw_version >> 24);
 	fw_ver.bMinor = (uint8_t)(fw_version >> 16);
 	fw_ver.Sub_minor = (uint16_t)(fw_version);
+
+	Bootloader_SelectMem_Fota(fw_meta_data);
 
 	printf("\r\nFirmware Version: %d.%d.%d", fw_ver.bMajor, fw_ver.bMinor, fw_ver.Sub_minor);
 	printf("\r\nFirmware Size: %lu bytes", fw_size);

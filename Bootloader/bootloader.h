@@ -53,11 +53,10 @@ typedef struct
 } JumpStruct;
 
 extern uint32_t APP_START_ADDR, APP_FLASH_SIZE, APP_END_ADDR, JUM_TO_APP_ADDR;
-extern uint32_t current_active_flag, previous_active_flag;
 
 /* Functions -----------------------------------------------------------------*/
 void 				Bootloader_Task(void);
-
+void 				Bootloader_SelectMem_Fota(uint32_t current_active_flag);
 #ifdef __cplusplus
 }
 #endif

@@ -45,6 +45,7 @@ typedef struct __attribute__((__packed__))
 	uint32_t firmwareSize;
 	uint32_t firmwareVersion;
 	uint32_t checksumValue;
+	uint32_t metaData;
 } FirmwareHeader_t;
 
 #define MY_FIRMWARE_TYPE 				0xA5A5A5A5
@@ -61,10 +62,10 @@ typedef struct __attribute__((__packed__))
 #define APP2_END_ADDR 					((uint32_t)(APP2_START_ADDR + APP2_FLASH_SIZE - 1))
 
 #define FW_HEADER_START_ADDR 			0x08008000
-#define FW_HEADER_FLASH_SIZE 			((uint32_t)(16 * 1024))
+#define FW_HEADER_FLASH_SIZE 			((uint32_t)(20 * 1024))
 #define FW_HEADER_END_ADDR 				((uint32_t)(FW_HEADER_START_ADDR + FW_HEADER_FLASH_SIZE - 1))
 
-#define ACTIVE_APP_FLAG_ADDR 			(FW_HEADER_START_ADDR + 0x14)
+#define ACTIVE_APP_FLAG_ADDR 			(FW_HEADER_START_ADDR + 0x10)
 #define ACTIVE_APP_FLAG_VALUE_A 		0xAABBCCDD
 #define ACTIVE_APP_FLAG_VALUE_B 		0x11223344
 
